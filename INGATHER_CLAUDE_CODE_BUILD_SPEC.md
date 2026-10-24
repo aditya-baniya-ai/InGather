@@ -10,6 +10,12 @@
 
 > **EXECUTION INSTRUCTION FOR CODING AGENTS:** Build this application in the current repository. Do not stop after creating a plan or producing a static mockup. Work incrementally, implement a real frontend, backend, database migrations, authorization controls, and a working Meta Muse Spark agent when credentials are available. Run the app, exercise its core flows and tests, fix failures, and document exactly what works. If a credential or third-party feature is unavailable, implement a clean adapter and a plainly labeled test/demo mode; do **not** pretend that real identity verification, live AI, Instagram integration, or real-world safety monitoring works. Prioritize the P0 vertical slice in Section 22, then add P1 features. Ask for secrets or irreversible deployment permissions only when genuinely required; never log or commit secrets.
 
+> **Revision 1.1 (build decisions, supersede conflicting text below):**
+> - **Stack:** one self-contained Docker image (FastAPI serves the built React app) + Postgres via docker-compose, own JWT auth, authorization enforced in a backend `Policy` service with uniform 404s. Supabase/RLS sections (11, 12, 14) are kept as the production-hardening path, not the hackathon build.
+> - **Data model trimmed:** invitations live on `proposal_members` (status invited/accepted/declined); see `backend/app/models.py`. Binding API: `docs/api-contract.md`.
+> - **More Meta models (flyer):** Muse Image (`muse-image-1.0`) for plan covers from non-personal attributes only; Muse Voice Transcribe (`muse-voice-transcribe-1.0`) for spoken plan input; a **Muse connector** (MCP endpoint `/mcp`, per-user revocable token) exposing read/run-only tools — never approve/confirm.
+> - **Submission is a 2–3 min video** with the flyer's 4-part breakdown — see Section 23.
+
 ---
 
 ## 0. Essential distinctions, non-negotiable decisions
@@ -1078,28 +1084,28 @@ Do not spend limited time on real GPS, browser extensions, Instagram login/DM in
 
 ---
 
-## 23. Suggested 2–3 minute judge demo script
+## 23. Demo video script (matches the official flyer's 4-part breakdown, 2–3 min)
 
-**0:00–0:20 — Human problem**
-“I'm going to a conference alone. I want company, but I don't want to post my schedule publicly or message strangers one by one.”
+The submission is a **2–3 minute demo video**. The flyer's suggested breakdown is binding structure:
 
-**0:20–0:40 — Familiar user experience**
-Show InGather's Instagram-inspired interface. Create/inspect a **private** Philadelphia conference plan (Jan 17–19, 2027; after 5 PM). Point out no public live location, no public exact itinerary.
+**Part 1 — Problem & how it brings people closer together with AI (~30s, 0:00–0:30)**
+“I'm going to a conference alone. I want company, but I don't want to post my schedule publicly or message strangers one by one.” InGather turns private intentions into a mutually accepted small-group plan.
 
-**0:40–1:05 — Actual agentic behavior**
-Click `Find my people`. Show real Muse Spark tool log events: authorization, eligible people, availability checks, group proposal. Explain AI chooses tools/reasons; server enforces rules.
+**Part 2 — Working product demo of key features (~90s, 0:30–2:00)**
+1. Instagram-inspired app; create a **private** Philadelphia conference plan by **voice** (Muse Voice Transcribe), generate a cover (Muse Image). Point out: no public itinerary, no live location.
+2. `Find my people` → live agent timeline with real Muse Spark tool calls; candidate cards with grounded reasons.
+3. `Pass` on one candidate → agent excludes and replans; nothing was sent to them.
+4. Approve exactly two invitations → switch to Jordan, decline → agent autonomously replans and asks Alice for **new approval**.
+5. Privacy attack: Eve requests Alice's plan/proposal by ID → `404`, no data.
+6. Everyone confirms final public venue → private Gather Room opens with agent icebreaker.
 
-**1:05–1:25 — Human agency**
-Press `Not interested` for one candidate. Agent receives feedback, excludes candidate, and replans. No invitation yet.
+**Part 3 — How AI plays a role and is integrated (~30s, 2:00–2:30)**
+Muse Spark runs a bounded Responses-API tool loop (find candidates → check group availability → propose group → replan on pass/decline); the backend enforces eligibility, consent, and privacy, so no prompt can bypass it. Muse Image and Muse Voice Transcribe power covers and voice input; the Muse connector (MCP) lets a user's own Muse agent check plans and invitations.
 
-**1:25–1:55 — Autonomous recovery**
-Approve exactly two invitations; second participant declines. Show decline-triggered agent replan and **new approval request**, then a replacement gets invited after approval.
+**Part 4 — Tools, harnesses and models used (~30s, 2:30–3:00)**
+Built with Claude Code (subagent team, design skills: taste-skill, impeccable, Emil Kowalski's skills; Playwright for browser testing). Runtime models: `muse-spark-1.3`, `muse-image-1.0`, `muse-voice-transcribe-1.0` via Meta Model API. Stack: React/Vite/Tailwind, FastAPI, Postgres, one Docker image.
 
-**1:55–2:15 — Privacy attack test**
-Open attacker account or `curl` outsider session to `GET /api/plans/{alice_plan_id}` or unauthorized proposal URL. Show `403/404`, no sensitive data. Explain no model prompt can bypass the service policy.
-
-**2:15–2:35 — Human outcome**
-Show final public-venue proposal, everyone individually approves, a private group room appears. Closing line: **“AI shouldn't replace human connection. It should make human connection happen—with consent.”**
+Closing line: **“AI shouldn't replace human connection. It should make human connection happen—with consent.”**
 
 ### Demo honesty rules
 - Say “fictional profiles and simulated verification” if using demo accounts.
