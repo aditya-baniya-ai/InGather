@@ -24,7 +24,7 @@ export function PlanCard({ plan, index = 0 }: { plan: Plan; index?: number }) {
     <article className="rise overflow-hidden rounded-[24px] border border-line bg-surface" style={{ animationDelay: `${index * 60}ms` }}>
       <Link to={`/plans/${plan.id}`} className="group block focus-visible:outline-offset-[-2px]">
         <div className="relative aspect-[16/8] overflow-hidden bg-sunk">
-          <Cover seed={plan.id} activity={plan.activity_type} src={plan.cover_image_url} className="size-full transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-[1.02]" />
+          <Cover activity={plan.activity_type} city={plan.city} src={plan.cover_image_url} className="size-full transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-[1.02]" />
           <span className="absolute left-3 top-3"><Pill tone="neutral" className="bg-surface/95 text-ink">{plan.discovery_mode === "mutual_discovery" ? <Eye className="size-3" aria-hidden /> : <Lock className="size-3" aria-hidden />} {DISCOVERY[plan.discovery_mode].label}</Pill></span>
         </div>
         <div className="p-4 sm:p-5">

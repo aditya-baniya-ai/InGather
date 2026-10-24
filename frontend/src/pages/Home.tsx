@@ -32,7 +32,7 @@ function Stories({ value, onChange }: { value: string | null; onChange: (v: stri
             className="press flex w-[68px] shrink-0 flex-col items-center gap-1.5 text-[12.5px]">
             <span className={cx("block size-[64px] rounded-full p-[2.5px]", active ? "story-ring" : "bg-line")}>
               <span className="block size-full overflow-hidden rounded-full border-[2.5px] border-ground">
-                <Cover seed={c.label} activity={c.activity ?? "other"} className="size-full" />
+                <Cover activity={c.activity ?? "other"} className="size-full" />
               </span>
             </span>
             <span className={cx(active ? "font-semibold text-ink" : "text-muted")}>{c.label}</span>
@@ -99,7 +99,7 @@ export function Home() {
           {ideas.map((idea) => (
             <li key={idea.goal}>
               <Link to={`/create?activity=${idea.activity}&goal=${encodeURIComponent(idea.goal)}`} className="flex min-h-14 items-center gap-4 px-4 py-3 hover:bg-raised">
-                <span className="size-10 shrink-0 overflow-hidden rounded-xl"><Cover seed={idea.goal} activity={idea.activity} className="size-full" /></span>
+                <span className="size-10 shrink-0 overflow-hidden rounded-xl"><Cover activity={idea.activity} className="size-full" /></span>
                 <span className="flex-1 text-[14.5px]">{idea.goal}</span>
                 <ArrowRight className="size-4 shrink-0 text-muted" aria-hidden />
               </Link>

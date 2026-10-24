@@ -22,7 +22,7 @@ function AgentPreview() {
   return (
     <div data-ui className="relative mx-auto w-full max-w-[440px]">
       <div className="overflow-hidden rounded-[28px] border border-line bg-surface shadow-[0_30px_80px_-30px_rgb(31_34_48/0.35)]">
-        <Cover seed="philly-conf" activity="conference" className="h-28 w-full" />
+        <Cover activity="conference" city="Philadelphia" className="h-28 w-full" />
         <div className="p-5">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[15px] font-semibold">Philly tech conference, after 5</p>

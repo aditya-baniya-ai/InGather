@@ -57,7 +57,7 @@ function PlanHeader({ plan }: { plan: Plan }) {
     <header className="mb-6">
       <div className="flex gap-4">
         <span className="size-20 shrink-0 overflow-hidden rounded-[20px] bg-sunk sm:size-24">
-          <Cover seed={plan.id} activity={plan.activity_type} src={plan.cover_image_url} className="size-full" />
+          <Cover activity={plan.activity_type} city={plan.city} src={plan.cover_image_url} className="size-full" />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] text-muted">{activityLabel(plan.activity_type)} · {plan.city} · {formatDateRange(plan.start_date, plan.end_date)}</p>
@@ -219,7 +219,7 @@ export function AgentIndex() {
           {active.map((p) => (
             <li key={p.id}>
               <Link to={`/plans/${p.id}`} className="flex min-h-16 items-center gap-4 px-4 py-3 hover:bg-raised">
-                <span className="size-12 shrink-0 overflow-hidden rounded-xl"><Cover seed={p.id} activity={p.activity_type} src={p.cover_image_url} className="size-full" /></span>
+                <span className="size-12 shrink-0 overflow-hidden rounded-xl"><Cover activity={p.activity_type} city={p.city} src={p.cover_image_url} className="size-full" /></span>
                 <span className="min-w-0 flex-1"><span className="block truncate font-medium">{p.title}</span><span className="block text-[13.5px] text-muted">{p.city} · {formatDateRange(p.start_date, p.end_date)}</span></span>
                 <ArrowRight className="size-4 text-muted" aria-hidden />
               </Link>
