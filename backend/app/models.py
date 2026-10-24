@@ -79,6 +79,10 @@ class User(Base):
     interests: Mapped[list[str]] = mapped_column(JSON, default=list)
     verification: Mapped[Verification] = mapped_column(str_enum(Verification), default=Verification.unverified)
     is_adult: Mapped[bool] = mapped_column(default=False)
+    # PRIVATE, backend-only: identity provider correlation (never serialized)
+    verification_provider: Mapped[str | None] = mapped_column(String(20))  # demo|stripe
+    verification_session_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     is_demo: Mapped[bool] = mapped_column(default=False)
     discovery_paused: Mapped[bool] = mapped_column(default=False)
     group_only: Mapped[bool] = mapped_column(default=True)
@@ -215,7 +219,8 @@ class AgentEvent(Base):
     id: Mapped[uuid.UUID] = Id.pk()
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
-    kind: Mapped[str] = mapped_column(String(12))  # tool|model|system|error
+    kind: Mapped[str] = mapped_column(String(12))  # tool|model|system|error|review
+    agent: Mapped[str | None] = mapped_column(String(20))  # orchestrator|matchmaker|scheduler|planner|reviewer
     tool_name: Mapped[str | None] = mapped_column(String(60))
     summary: Mapped[str] = mapped_column(String(400))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

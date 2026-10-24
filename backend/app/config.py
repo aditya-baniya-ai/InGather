@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     allow_real_world_meetups: bool = False
     enable_stranger_discovery: bool = False
     enable_real_identity_verification: bool = False
+    stripe_secret_key: str = ""  # sk_test_... enables Stripe Identity
+    stripe_webhook_secret: str = ""  # whsec_... verifies Stripe webhooks
+    public_base_url: str = "http://localhost:8000"  # where Stripe returns the user after verification
     jwt_secret: str = "dev-only-secret-change-me"
     jwt_ttl_minutes: int = 60 * 24
     cors_origins: str = "http://localhost:5173,http://localhost:8000"

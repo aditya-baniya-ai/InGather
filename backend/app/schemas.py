@@ -191,6 +191,7 @@ class RunIn(BaseModel):
 class EventOut(Out):
     seq: int
     kind: str
+    agent: str | None = None
     tool_name: str | None
     summary: str
     created_at: UTC

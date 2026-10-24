@@ -138,3 +138,35 @@ class GatherAgent:
 def start_run(db, owner: User, plan: Plan, trigger: str, goal: str = "", excluded: set[UUID] = ()) -> AgentRun
 def run_in_background(run_id: UUID) -> None                 # opens its own Session; used by BackgroundTasks / outbox
 ```
+
+---
+
+# v2 additions (agent orchestra, AI plan intake, verification)
+
+## Verification — `app/api/verification.py` + `app/services/identity.py`
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | /api/verification | – | `VerificationOut` |
+| POST | /api/verification/demo | `{confirm_adult: true}` | `MeOut`. **DEMO_MODE only** (else 404). Sets `verification=verified_demo`, `is_adult=true`, `verification_provider="demo"`, writes ConsentEvent `verification_demo`. 422 if `confirm_adult` is not true. Never upgrades `verified_live` down. |
+| POST | /api/verification/stripe/start | – | `{url}` — creates a Stripe Identity VerificationSession (type `document`, `metadata.user_id`, `return_url=PUBLIC_BASE_URL/verify?done=1`), stores `verification_session_id`, provider `stripe`. 503 `{"detail":"stripe_unavailable"}` without `STRIPE_SECRET_KEY`. |
+| POST | /api/webhooks/stripe | raw Stripe event | 200. **Signature-verified** with `STRIPE_WEBHOOK_SECRET` (HMAC-SHA256 `Stripe-Signature`, 5-min tolerance) else 400. On `identity.verification_session.verified`: look up user by stored session id (never by metadata alone), retrieve the session with `expand[]=verified_outputs` to read `dob`, set `verification=verified_live`, `is_adult` from DOB ≥ 18, `verified_at`. Idempotent. Other events: 200 no-op. |
+
+`VerificationOut = {status: "unverified"|"verified_demo"|"verified_live", provider: "demo"|"stripe"|null, is_adult, verified_at|null, demo_available: bool (DEMO_MODE), stripe_available: bool (key set), stripe_test_mode: bool (key starts sk_test_)}`
+
+UI copy rules: `verified_demo` → "Demo account · verification simulated — no ID checked". `verified_live` in Stripe **test mode** → "Stripe Identity test mode — not a real ID check". Never say "safe".
+
+## AI plan intake — `POST /api/plans/draft` (in `app/ai/routes.py`)
+Body `{text (1-2000), timezone_hint?: IANA}` → `PlanDraftOut` (nothing is saved):
+`{activity_type|null, title|null, goal_text, city|null, timezone|null, start_date|null, end_date|null, intent|null, interests: [], group_min|null, group_max|null, group_only|null, windows: [{starts_at, ends_at}] (UTC ISO), missing: [field names it could not infer], notes: str (one sentence, e.g. "Assumed 2026 because the dates are upcoming"), mode: "live"}`
+Uses the **Intake agent** (Muse Spark, structured output, no tools), told today's date (server, in timezone_hint) so relative/past dates resolve to the next future occurrence. Validates output through the same rules as `PlanIn` (2≤min≤max≤4, end≥start, known activity types) and drops invalid fields into `missing`. 503 `ai_unavailable` without key. Rate-limited.
+
+## Agent orchestra — `app/ai/orchestra/` (replaces the single-agent loop behind the SAME `start_run` / `run_in_background` / `RunOut` API)
+Separate Muse Spark agents, each with its own instructions and an allowlisted subset of the existing `AgentToolbox` tools:
+1. **matchmaker** — `get_my_plan_context`, `find_eligible_candidates` → shortlist (≤ group_max-1+2 handles) with one reason each.
+2. **scheduler** and 3. **planner** run **in parallel** (threads) on the shortlist:
+   - scheduler — `check_group_availability` → chosen group (subset of shortlist) + a start/end inside a returned window.
+   - planner — no tools → activity_title, venue_category (public allowlist), generic venue_label, icebreaker, explanation draft, from shared interests/activity only.
+4. **reviewer** — no tools; receives the combined draft (handles, reasons, time, venue, explanation) plus the policy checklist; returns per-agent verdicts `{agent, approved, reason}`. If any rejected, the orchestrator re-asks that agent once with the reviewer's feedback, then reviews again. Only an approved draft is passed to `propose_group` (executed by orchestrator code, still fully validated by the toolbox/backend). Reviewer rejection twice → run fails honestly (`review_rejected`).
+Offline (no key): each agent has a deterministic fallback; reviewer runs deterministic checks; events still labeled "Rules-based".
+
+`RunOut.events[]` gains `agent: "orchestrator"|"matchmaker"|"scheduler"|"planner"|"reviewer"|null` and kind `"review"` for reviewer verdicts (summary starts with "Approved:" or "Sent back to <agent>:"). Existing event semantics (kind=tool only for real executions) unchanged.
