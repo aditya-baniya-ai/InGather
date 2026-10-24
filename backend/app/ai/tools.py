@@ -9,6 +9,7 @@ plus approved preview fields. Every executed tool writes a safe AgentEvent; noth
 
 import json
 import re
+import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import get_args
@@ -16,7 +17,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings
 from app.models import AgentEvent, AgentRun, Block, MemberStatus, Plan, Proposal, ProposalStatus, User
@@ -58,16 +59,23 @@ def proposals_service(db: Session, settings: Settings):
 
 # ---------- timeline ----------
 class EventLog:
-    """Appends owner-visible timeline rows. Commits each row so pollers see progress live."""
+    """Appends owner-visible timeline rows so pollers see progress live.
+
+    Thread-safe: each row is written in its own short-lived Session (same engine as `db`) under a lock,
+    so orchestra agents running in parallel threads can log without ever sharing a Session.
+    """
 
     def __init__(self, db: Session, run: AgentRun):
-        self.db, self.run = db, run
+        self.run_id = run.id
+        self._sessions = sessionmaker(bind=db.get_bind(), expire_on_commit=False)
+        self._lock = threading.Lock()
         self.seq = db.scalar(select(func.max(AgentEvent.seq)).where(AgentEvent.run_id == run.id)) or 0
 
-    def add(self, kind: str, summary: str, tool_name: str | None = None) -> None:
-        self.seq += 1
-        self.db.add(AgentEvent(run_id=self.run.id, seq=self.seq, kind=kind, tool_name=tool_name, summary=summary[:400]))
-        self.db.commit()
+    def add(self, kind: str, summary: str, tool_name: str | None = None, agent: str | None = None) -> None:
+        with self._lock, self._sessions() as s:
+            self.seq += 1
+            s.add(AgentEvent(run_id=self.run_id, seq=self.seq, kind=kind, agent=agent, tool_name=tool_name, summary=summary[:400]))
+            s.commit()
 
 
 # ---------- argument models ----------
@@ -191,6 +199,7 @@ class AgentToolbox:
         self._checked: list[tuple[frozenset[str], list[tuple[datetime, datetime]]]] = []
         self.proposal: Proposal | None = None
         self.calls = 0
+        self._agent: str | None = None
         self.label = ""  # "Rules-based: " in offline mode so the timeline never looks like Muse Spark
 
     # ----- shared state -----
@@ -269,13 +278,15 @@ class AgentToolbox:
         return _HANDLE.sub(name, text)
 
     # ----- dispatch -----
-    def execute(self, name: str, raw_args: str | dict | None) -> dict:
-        """Run one model-requested tool. Never raises; failures come back as {'error': ...}."""
+    def execute(self, name: str, raw_args: str | dict | None, agent: str | None = None) -> dict:
+        """Run one model-requested tool. Never raises; failures come back as {'error': ...}.
+        `agent` only labels the timeline row; it grants nothing (allowlists are enforced by the caller)."""
         self.calls += 1
+        self._agent = agent
         safe_name = re.sub(r"[^A-Za-z0-9_.-]", "", str(name))[:60] or "unknown"
         handler = getattr(self, f"_t_{name}", None) if name in TOOL_NAMES else None
         if handler is None:
-            self.log.add("error", f"Rejected unknown tool '{safe_name}'", safe_name)
+            self.log.add("error", f"Rejected unknown tool '{safe_name}'", safe_name, agent)
             return {"error": f"unknown tool '{safe_name}'. Allowed: {sorted(TOOL_NAMES)}"}
         try:
             args = raw_args if isinstance(raw_args, dict) else json.loads(raw_args or "{}")
@@ -293,12 +304,17 @@ class AgentToolbox:
         except Exception:
             self.db.rollback()
             return self._fail(safe_name, "internal error while running this tool")
-        self.log.add("tool", self.label + summary, safe_name)
+        self.log.add("tool", self.label + summary, safe_name, agent)
         return result
 
     def _fail(self, name: str, msg: str) -> dict:
-        self.log.add("error", f"{name} rejected: {msg}"[:400], name)
+        self.log.add("error", f"{name} rejected: {msg}"[:400], name, self._agent)
         return {"error": msg}
+
+    def fits_checked_window(self, handles: list[str], start: datetime, end: datetime) -> bool:
+        """True if [start, end] lies inside a window check_group_availability returned for a superset of handles."""
+        chosen = set(handles)
+        return any(chosen <= ids and any(ws <= start and end <= we for ws, we in wins) for ids, wins in self._checked)
 
     # ----- tools -----
     def _t_get_my_plan_context(self, args: dict):
@@ -398,10 +414,7 @@ class AgentToolbox:
         end = a.end_at if a.end_at.tzinfo else a.end_at.replace(tzinfo=self.tz)
         if not start < end <= start + timedelta(hours=6):
             raise ToolError("end_at must be after start_at and at most 6 hours later")
-        chosen = set(a.candidate_ids)
-        if not any(
-            chosen <= ids and any(ws <= start and end <= we for ws, we in wins) for ids, wins in self._checked
-        ):
+        if not self.fits_checked_window(a.candidate_ids, start, end):
             raise ToolError("time must fall inside a window returned by check_group_availability for these candidates")
         named = self.humanize
         proposal = proposals_service(self.db, self.settings).save_agent_result(
