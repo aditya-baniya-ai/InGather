@@ -14,6 +14,7 @@ export const keys = {
   messages: (id: string) => ["messages", id] as const,
   blocks: ["blocks"] as const,
   demo: ["demo-accounts"] as const,
+  verification: ["verification"] as const,
 };
 
 export const usePlans = () => useQuery({ queryKey: keys.plans, queryFn: api.plans });
@@ -41,6 +42,10 @@ export const useMessages = (id: string, enabled: boolean) =>
   useQuery({ queryKey: keys.messages(id), queryFn: () => api.messages(id), enabled, retry: noRetryOn4xx, refetchInterval: 3000 });
 
 export const useBlocks = () => useQuery({ queryKey: keys.blocks, queryFn: api.blocks });
+
+/** Verification status; `poll` (ms) while waiting for a Stripe webhook. */
+export const useVerification = (poll: number | false = false) =>
+  useQuery({ queryKey: keys.verification, queryFn: api.verification, retry: noRetryOn4xx, refetchInterval: poll });
 
 export const useDemoAccounts = () =>
   useQuery({ queryKey: keys.demo, queryFn: api.demoAccounts, retry: false, staleTime: Infinity });

@@ -12,6 +12,7 @@ import { ProposalPage } from "./pages/ProposalPage";
 import { Invitations } from "./pages/Invitations";
 import { Room } from "./pages/Room";
 import { Profile } from "./pages/Profile";
+import { Verify } from "./pages/Verify";
 
 function Private({ children }: { children: ReactNode }) {
   const { signedIn, isLoading } = useAuth();
@@ -42,6 +43,7 @@ export function App() {
       <Route path="/proposals/:proposalId" element={<Private><ProposalPage /></Private>} />
       <Route path="/proposals/:proposalId/room" element={<Private><Room /></Private>} />
       <Route path="/invitations" element={<Private><Invitations /></Private>} />
+      <Route path="/verify" element={<Private><Verify /></Private>} />
       <Route path="/profile" element={<Private><Profile /></Private>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

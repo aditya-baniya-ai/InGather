@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
-import { AlertCircle, Loader2, RotateCw, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { AlertCircle, Eye, EyeOff, Loader2, RotateCw, X } from "lucide-react";
 import { errorMessage } from "../lib/api";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -13,22 +13,21 @@ const variants: Record<Variant, string> = {
   agent: "bg-violet text-white hover:bg-violet-ink disabled:bg-sunk disabled:text-muted aria-busy:bg-violet aria-busy:text-white",
 };
 
+type Size = "sm" | "md" | "lg";
+/** Button look, shared with links that act as buttons. */
+export const buttonCls = (variant: Variant = "primary", size: Size = "md", className?: string) => cx(
+  "press inline-flex items-center justify-center gap-2 rounded-full font-medium whitespace-nowrap select-none disabled:cursor-not-allowed",
+  size === "sm" && "min-h-9 px-3.5 text-[14px]",
+  size === "md" && "min-h-11 px-5 text-[15px]",
+  size === "lg" && "min-h-12 px-6 text-[16px]",
+  variants[variant],
+  className,
+);
+
 export function Button({ variant = "primary", size = "md", loading, icon, className, children, disabled, ...rest }:
-  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: "sm" | "md" | "lg"; loading?: boolean; icon?: ReactNode }) {
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; loading?: boolean; icon?: ReactNode }) {
   return (
-    <button
-      {...rest}
-      disabled={disabled || loading}
-      aria-busy={loading || undefined}
-      className={cx(
-        "press inline-flex items-center justify-center gap-2 rounded-full font-medium whitespace-nowrap select-none disabled:cursor-not-allowed",
-        size === "sm" && "min-h-9 px-3.5 text-[14px]",
-        size === "md" && "min-h-11 px-5 text-[15px]",
-        size === "lg" && "min-h-12 px-6 text-[16px]",
-        variants[variant],
-        className,
-      )}
-    >
+    <button {...rest} disabled={disabled || loading} aria-busy={loading || undefined} className={buttonCls(variant, size, className)}>
       {loading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : icon}
       {children}
     </button>
@@ -51,20 +50,23 @@ export function Pill({ tone = "neutral", children, className }: { tone?: "neutra
   return <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-5", tones[tone], className)}>{children}</span>;
 }
 
-function FieldShell({ label, hint, id, children, optional }: { label: string; hint?: ReactNode; id: string; children: ReactNode; optional?: boolean }) {
+function FieldShell({ label, hint, error, id, children, optional }: { label: ReactNode; hint?: ReactNode; error?: ReactNode; id: string; children: ReactNode; optional?: boolean }) {
   return (
     <div className="flex flex-col gap-2">
       <label htmlFor={id} className="text-[14px] font-medium">
         {label}{optional && <span className="font-normal text-muted"> · optional</span>}
       </label>
       {children}
-      {hint && <p id={`${id}-hint`} className="text-[13px] text-muted">{hint}</p>}
+      {error ? <p id={`${id}-hint`} role="alert" className="text-[13px] text-danger">{error}</p>
+        : hint && <p id={`${id}-hint`} className="text-[13px] text-muted">{hint}</p>}
     </div>
   );
 }
-const controlCls = "w-full rounded-xl border border-line bg-surface px-3.5 min-h-11 outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-[#7a7d89] hover:border-control focus:border-violet focus:shadow-[0_0_0_3px_var(--color-violet-soft)]";
+const controlCls = "w-full rounded-xl border border-line bg-surface px-3.5 min-h-11 outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-[#7a7d89] hover:border-control focus:border-violet focus:shadow-[0_0_0_3px_var(--color-violet-soft)] aria-invalid:border-danger";
 
-export function TextField({ label, hint, optional, className, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: ReactNode; optional?: boolean }) {
+type FieldProps = { label: ReactNode; hint?: ReactNode; optional?: boolean };
+
+export function TextField({ label, hint, optional, className, ...rest }: InputHTMLAttributes<HTMLInputElement> & FieldProps) {
   const id = useId();
   return (
     <FieldShell label={label} hint={hint} id={id} optional={optional}>
@@ -73,7 +75,25 @@ export function TextField({ label, hint, optional, className, ...rest }: InputHT
   );
 }
 
-export function TextArea({ label, hint, optional, className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; hint?: ReactNode; optional?: boolean }) {
+/** Password input with a show/hide toggle and an optional live error. */
+export function PasswordField({ label, hint, error, className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & FieldProps & { error?: ReactNode }) {
+  const id = useId();
+  const [shown, setShown] = useState(false);
+  return (
+    <FieldShell label={label} hint={hint} error={error} id={id}>
+      <div className="relative">
+        <input id={id} type={shown ? "text" : "password"} aria-invalid={!!error || undefined} aria-describedby={hint || error ? `${id}-hint` : undefined}
+          className={cx(controlCls, "pr-12", className)} {...rest} />
+        <button type="button" onClick={() => setShown((v) => !v)} aria-pressed={shown} aria-label="Show password"
+          className="press absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-muted hover:text-ink">
+          {shown ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+        </button>
+      </div>
+    </FieldShell>
+  );
+}
+
+export function TextArea({ label, hint, optional, className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement> & FieldProps) {
   const id = useId();
   return (
     <FieldShell label={label} hint={hint} id={id} optional={optional}>
@@ -82,7 +102,7 @@ export function TextArea({ label, hint, optional, className, ...rest }: Textarea
   );
 }
 
-export function SelectField({ label, hint, options, className, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; hint?: ReactNode; options: { value: string; label: string }[] }) {
+export function SelectField({ label, hint, options, className, ...rest }: SelectHTMLAttributes<HTMLSelectElement> & FieldProps & { options: { value: string; label: string }[] }) {
   const id = useId();
   return (
     <FieldShell label={label} hint={hint} id={id}>
@@ -106,7 +126,7 @@ export function Chip({ selected, onClick, children, className }: { selected?: bo
   );
 }
 
-export function Switch({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string; disabled?: boolean }) {
+export function Switch({ checked, onChange, label, description, disabled }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode; description?: string; disabled?: boolean }) {
   const id = useId();
   return (
     <div className="flex items-start justify-between gap-4 py-3">
@@ -208,6 +228,42 @@ export function SectionTitle({ children, action, id }: { children: ReactNode; ac
     <div className="mb-3 flex items-center justify-between gap-3">
       <h2 id={id} className="text-[17px] font-semibold">{children}</h2>
       {action}
+    </div>
+  );
+}
+
+/** Small violet marker for values an AI agent filled in (violet = AI). */
+export function AiMark({ children = "Filled by Intake agent" }: { children?: ReactNode }) {
+  return (
+    <span className="rise ml-2 inline-flex items-center gap-1.5 align-middle text-[12px] font-normal text-violet-ink">
+      <span className="size-1.5 rounded-full bg-violet" aria-hidden />{children}
+    </span>
+  );
+}
+
+/** Segmented control with tablist semantics; arrow keys move between tabs. */
+export function Tabs<T extends string>({ value, onChange, options, label, idBase }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; label: string; idBase: string }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+    const i = (options.findIndex((o) => o.value === value) + step + options.length) % options.length;
+    onChange(options[i].value);
+    refs.current[i]?.focus();
+  };
+  return (
+    <div role="tablist" aria-label={label} onKeyDown={onKey} className="inline-flex rounded-full bg-raised p-1">
+      {options.map((o, i) => {
+        const on = o.value === value;
+        return (
+          <button key={o.value} ref={(el) => { refs.current[i] = el; }} type="button" role="tab" id={`${idBase}-tab-${o.value}`} aria-selected={on}
+            aria-controls={`${idBase}-panel`} tabIndex={on ? 0 : -1} onClick={() => onChange(o.value)}
+            className={cx("press inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-[14.5px] font-medium",
+              on ? "bg-surface text-ink shadow-[0_1px_2px_rgb(31_34_48/0.08),0_0_0_1px_var(--color-line)]" : "text-muted hover:text-ink")}>
+            {o.label}
+          </button>
+        );
+      })}
     </div>
   );
 }

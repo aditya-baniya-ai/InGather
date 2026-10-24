@@ -8,7 +8,8 @@ export type ProposalStatus = "pending_owner" | "invites_pending" | "awaiting_fin
 export type MemberStatus = "suggested" | "passed" | "invited" | "accepted" | "declined" | "expired" | "removed";
 export type ViewerRole = "owner" | "invitee" | "member";
 export type Feedback = "prefer_same_event" | "prefer_group" | "different_activity" | "schedule";
-export type EventKind = "tool" | "model" | "system" | "error";
+export type EventKind = "tool" | "model" | "system" | "error" | "review";
+export type AgentName = "orchestrator" | "matchmaker" | "scheduler" | "planner" | "reviewer";
 
 export interface Me {
   id: string;
@@ -54,7 +55,7 @@ export interface Plan extends PlanIn {
   latest_run_id: string | null;
 }
 
-export interface RunEvent { seq: number; kind: EventKind; tool_name: string | null; summary: string; created_at: string }
+export interface RunEvent { seq: number; kind: EventKind; agent?: AgentName | null; tool_name: string | null; summary: string; created_at: string }
 export interface Run {
   id: string;
   plan_id: string;
@@ -119,6 +120,36 @@ export interface Invitation {
   status: MemberStatus;
   expires_at: string | null;
 }
+export interface VerificationOut {
+  status: Verification;
+  provider: "demo" | "stripe" | null;
+  is_adult: boolean;
+  verified_at: string | null;
+  demo_available: boolean;
+  stripe_available: boolean;
+  stripe_test_mode: boolean;
+}
+
+/** AI intake draft: nothing is saved. Windows are UTC ISO. */
+export interface PlanDraft {
+  activity_type: string | null;
+  title: string | null;
+  goal_text: string;
+  city: string | null;
+  timezone: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  intent: string | null;
+  interests: string[];
+  group_min: number | null;
+  group_max: number | null;
+  group_only: boolean | null;
+  windows: Window[];
+  missing: string[];
+  notes: string;
+  mode: "live";
+}
+
 export interface Message { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
 export interface BlockedUser { user_id: string; display_name: string }
 export interface FinalizeIn { start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
@@ -195,7 +226,13 @@ export class ApiClient {
   me = () => this.get<Me>("/api/me");
   updateMe = (patch: MePatch) => this.request<Me>("PATCH", "/api/me", patch);
 
+  // verification
+  verification = () => this.get<VerificationOut>("/api/verification");
+  demoVerify = () => this.post<Me>("/api/verification/demo", { confirm_adult: true });
+  stripeStart = () => this.post<{ url: string }>("/api/verification/stripe/start");
+
   // plans
+  draftPlan = (text: string, timezone_hint: string) => this.post<PlanDraft>("/api/plans/draft", { text, timezone_hint });
   plans = () => this.get<Plan[]>("/api/plans");
   plan = (id: string) => this.get<Plan>(`/api/plans/${id}`);
   createPlan = (plan: PlanIn) => this.post<Plan>("/api/plans", plan);
@@ -245,7 +282,7 @@ export const api = new ApiClient();
 
 const DETAIL_COPY: Record<string, string> = {
   ai_consent_required: "Turn on AI processing for this plan first.",
-  not_eligible: "Your account can't use discovery yet (verification required or discovery paused).",
+  not_eligible: "Your account can't use discovery yet: verify your account, or turn off \"Pause all discovery\" in Profile.",
   plan_inactive: "This plan is paused or cancelled. Resume it to continue.",
   stale_version: "The proposal changed while you were looking. Review the latest version and try again.",
   not_suggested: "That person is no longer a current suggestion. Review the latest list.",
@@ -262,7 +299,13 @@ const DETAIL_COPY: Record<string, string> = {
   email_taken: "An account with that email already exists. Try signing in.",
   transcription_failed: "Couldn't transcribe that. You can type instead.",
   ai_unavailable: "This AI feature is unavailable right now.",
+  draft_failed: "The Intake agent couldn't draft that. Try rephrasing it, or fill the form manually.",
+  stripe_unavailable: "Stripe Identity isn't set up on this server.",
+  review_rejected: "The Reviewer agent rejected the draft twice, so nothing was proposed.",
 };
+
+/** Friendly copy for a backend detail code (or the code itself). */
+export const detailCopy = (detail: string) => DETAIL_COPY[detail] ?? detail;
 
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) {

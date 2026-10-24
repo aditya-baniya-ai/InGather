@@ -74,9 +74,15 @@ export const PROPOSAL_STATUS: Record<ProposalStatus, string> = {
 
 export const VERIFICATION: Record<Verification, { label: string; detail: string }> = {
   unverified: { label: "Not verified", detail: "Discovery stays off until identity and adulthood are verified." },
-  verified_demo: { label: "Demo account · verification simulated", detail: "No ID was checked. This is a fictional test profile for the hackathon demo." },
-  verified_live: { label: "Identity verified", detail: "Confirmed by a verification provider." },
+  verified_demo: { label: "Demo account · verification simulated", detail: "No ID was checked. Demo verification is simulated for the hackathon." },
+  verified_live: { label: "Identity verified", detail: "Confirmed by Stripe Identity." },
 };
+
+/** Verification copy that never overstates a Stripe test-mode check. */
+export const verificationCopy = (status: Verification, stripeTestMode = false) =>
+  status === "verified_live" && stripeTestMode
+    ? { label: "Stripe test mode · not a real ID check", detail: "Stripe Identity ran in test mode, so no real ID was checked." }
+    : VERIFICATION[status];
 
 export const REPORT_REASONS = [
   { value: "harassment", label: "Harassment or bullying" },

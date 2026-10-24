@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { FlaskConical } from "lucide-react";
 import { api, type TokenOut } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useDemoAccounts } from "../lib/hooks";
 import { Wordmark } from "../components/Brand";
 import { DISCLAIMER } from "../components/AppShell";
-import { Avatar, Button, InlineError, TextField } from "../components/ui";
+import { Avatar, Button, InlineError, PasswordField, TextField } from "../components/ui";
+import { MIN_PASSWORD, passwordCheck } from "../lib/forms";
 
 function DemoAccounts({ onToken }: { onToken: (t: TokenOut) => void }) {
   const demo = useDemoAccounts();
@@ -25,7 +26,7 @@ function DemoAccounts({ onToken }: { onToken: (t: TokenOut) => void }) {
       <p className="mt-1 text-[13.5px] text-amber-ink">Fictional people for the hackathon demo. No ID was checked for any of them.</p>
       <ul className="mt-4 grid gap-2 sm:grid-cols-2">
         {demo.data.map((a) => (
-          <li key={a.email}>
+          <li key={a.email} className="min-w-0">
             <button onClick={() => go(a.email)} disabled={!!busy}
               className="press flex min-h-14 w-full items-center gap-3 rounded-2xl bg-surface px-3 py-2 text-left hover:bg-raised disabled:opacity-60">
               <Avatar name={a.display_name} src={a.avatar_url} size={36} />
@@ -44,24 +45,29 @@ function DemoAccounts({ onToken }: { onToken: (t: TokenOut) => void }) {
 
 export function Login() {
   const { signedIn, signIn } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
   const [mode, setMode] = useState<"signin" | "join">(params.get("join") ? "join" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
+  const [next, setNext] = useState<string | null>(null);
   const from = (location.state as { from?: string } | null)?.from ?? "/home";
 
-  if (signedIn) return <Navigate to={from} replace />;
+  if (signedIn) return <Navigate to={next ?? from} replace />;
 
-  const done = (t: TokenOut) => { signIn(t); navigate(from, { replace: true }); };
+  const joining = mode === "join";
+  const pw = passwordCheck(password, confirm);
+  const done = (t: TokenOut, to = from) => { setNext(to); signIn(t); };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (joining && !pw.ok) return;
     setBusy(true); setError(null);
-    try { done(mode === "join" ? await api.register(email, password, name) : await api.login(email, password)); }
+    // New accounts start unverified: onboarding continues at /verify.
+    try { if (joining) done(await api.register(email, password, name), "/verify"); else done(await api.login(email, password)); }
     catch (err) { setError(err); } finally { setBusy(false); }
   };
 
@@ -70,22 +76,26 @@ export function Login() {
       <div className="mx-auto flex max-w-[520px] flex-col gap-6">
         <Link to="/" className="self-start" aria-label="ingather home"><Wordmark /></Link>
         <section aria-labelledby="auth-title" className="rounded-[24px] border border-line bg-surface p-6 sm:p-8">
-          <h1 id="auth-title" className="font-display text-[36px] leading-none">{mode === "join" ? "Start privately" : "Welcome back"}</h1>
+          <h1 id="auth-title" className="font-display text-[36px] leading-none">{joining ? "Start privately" : "Welcome back"}</h1>
           <p className="mt-2 text-[15px] text-muted">
-            {mode === "join" ? "New accounts start unverified. Discovery stays off until identity and adulthood are verified." : "Sign in to your plans and invitations."}
+            {joining ? "New accounts start unverified. Discovery stays off until identity and adulthood are verified." : "Sign in to your plans and invitations."}
           </p>
           <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
-            {mode === "join" && <TextField label="Display name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} autoComplete="nickname" />}
+            {joining && <TextField label="Display name" value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} autoComplete="nickname" />}
             <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
-            <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={mode === "join" ? 8 : undefined}
-              autoComplete={mode === "join" ? "new-password" : "current-password"} hint={mode === "join" ? "At least 8 characters." : undefined} />
+            <PasswordField label="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={joining ? MIN_PASSWORD : undefined}
+              autoComplete={joining ? "new-password" : "current-password"} hint={joining ? `At least ${MIN_PASSWORD} characters.` : undefined} />
+            {joining && (
+              <PasswordField label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required autoComplete="new-password"
+                error={pw.mismatch ? "Passwords don't match yet." : undefined} />
+            )}
             <InlineError error={error} />
-            <Button type="submit" size="lg" loading={busy}>{mode === "join" ? "Create account" : "Sign in"}</Button>
+            <Button type="submit" size="lg" loading={busy} disabled={joining && !pw.ok}>{joining ? "Create account" : "Sign in"}</Button>
           </form>
           <p className="mt-5 text-center text-[14px] text-muted">
-            {mode === "join" ? "Already have an account? " : "New here? "}
-            <button className="min-h-11 font-medium text-ink underline underline-offset-4" onClick={() => { setMode(mode === "join" ? "signin" : "join"); setError(null); }}>
-              {mode === "join" ? "Sign in" : "Join"}
+            {joining ? "Already have an account? " : "New here? "}
+            <button className="min-h-11 font-medium text-ink underline underline-offset-4" onClick={() => { setMode(joining ? "signin" : "join"); setError(null); setConfirm(""); }}>
+              {joining ? "Sign in" : "Join"}
             </button>
           </p>
         </section>

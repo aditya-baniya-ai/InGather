@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Check, Copy, FlaskConical, KeyRound, ShieldCheck, ShieldOff } from "lucide-react";
+import { Check, Copy, KeyRound } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../components/AppShell";
+import { VerificationCard } from "../components/VerificationCard";
 import { Avatar, Button, Chip, ErrorState, InlineError, LoadingBlock, Panel, Pill, Switch, TextArea, TextField } from "../components/ui";
-import { api, type Me, type MePatch } from "../lib/api";
+import { api, type MePatch } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { keys, useAction, useBlocks } from "../lib/hooks";
-import { INTEREST_SUGGESTIONS, VERIFICATION } from "../lib/vocab";
+import { keys, useAction, useBlocks, useVerification } from "../lib/hooks";
+import { INTEREST_SUGGESTIONS, verificationCopy } from "../lib/vocab";
 
 function Section({ title, description, children, id }: { title: string; description?: ReactNode; children: ReactNode; id: string }) {
   return (
@@ -17,31 +18,6 @@ function Section({ title, description, children, id }: { title: string; descript
       </div>
       <div className="min-w-0">{children}</div>
     </section>
-  );
-}
-
-/** Screen C: verification status, honest about demo vs live. */
-function VerificationCard({ me }: { me: Me }) {
-  const v = VERIFICATION[me.verification];
-  const Icon = me.verification === "verified_live" ? ShieldCheck : me.verification === "verified_demo" ? FlaskConical : ShieldOff;
-  return (
-    <Panel className="p-5">
-      <ol className="flex flex-col gap-3 text-[14.5px]">
-        <li className="flex items-center gap-3"><Check className="size-4 text-emerald" aria-hidden /> Account created</li>
-        <li className="flex items-start gap-3">
-          <Icon className={me.verification === "unverified" ? "mt-0.5 size-4 text-muted" : "mt-0.5 size-4 text-amber-ink"} aria-hidden />
-          <div>
-            <p className="font-medium">Identity &amp; adulthood: {v.label}</p>
-            <p className="text-[13.5px] text-muted">{v.detail}</p>
-          </div>
-        </li>
-        <li className="flex items-center gap-3">
-          {me.can_discover ? <Check className="size-4 text-emerald" aria-hidden /> : <ShieldOff className="size-4 text-muted" aria-hidden />}
-          Discovery {me.can_discover ? "available" : "unavailable"}
-        </li>
-      </ol>
-      <p className="mt-4 rounded-2xl bg-raised p-3 text-[13.5px]">Identity verification helps confirm identity. It cannot guarantee someone's behavior.</p>
-    </Panel>
   );
 }
 
@@ -88,6 +64,7 @@ export function Profile() {
   const { me, signOut } = useAuth();
   const qc = useQueryClient();
   const blocks = useBlocks();
+  const ver = useVerification();
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
@@ -116,8 +93,9 @@ export function Profile() {
         <div className="min-w-0">
           <h1 className="truncate text-[26px] font-semibold leading-tight">{me.display_name}</h1>
           <div className="mt-1 flex flex-wrap gap-2">
-            {me.is_demo && <Pill tone="amber">Demo account · verification simulated — no ID checked</Pill>}
-            {me.verification === "verified_live" && <Pill tone="emerald">Identity verified</Pill>}
+            {me.is_demo || me.verification === "verified_demo" ? <Pill tone="amber">Demo account · verification simulated — no ID checked</Pill>
+              : me.verification === "verified_live" ? <Pill tone={ver.data?.stripe_test_mode ? "amber" : "emerald"}>{verificationCopy("verified_live", ver.data?.stripe_test_mode).label}</Pill>
+                : <Pill>Not verified</Pill>}
           </div>
         </div>
       </header>
@@ -142,7 +120,7 @@ export function Profile() {
         </Section>
 
         <Section id="s-verify" title="Verification" description="A gate for discovery, not a safety rating.">
-          <VerificationCard me={me} />
+          <VerificationCard me={me} cta />
         </Section>
 
         <Section id="s-privacy" title="Privacy" description="Changes save immediately.">
