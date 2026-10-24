@@ -1,22 +1,43 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Lock, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Lock, Plus, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { VoiceButton } from "../components/VoiceButton";
-import { Button, Chip, cx, InlineError, Panel, SelectField, Switch, TextArea, TextField } from "../components/ui";
-import { api, type DiscoveryMode } from "../lib/api";
-import { keys } from "../lib/hooks";
+import { AiMark, Button, Chip, cx, InlineError, Panel, SelectField, Switch, Tabs, TextArea, TextField } from "../components/ui";
+import { api, ApiError, type DiscoveryMode, type PlanDraft } from "../lib/api";
+import { draftToForm, MISSING_COPY, type FormKey, type PlanForm } from "../lib/forms";
+import { keys, useAction } from "../lib/hooks";
 import { browserTimeZone, TIMEZONES, windowsToUtc, type LocalWindow } from "../lib/time";
 import { ACTIVITIES, DISCOVERY, INTENTS, INTEREST_SUGGESTIONS } from "../lib/vocab";
 
-function Fieldset({ legend, children, hint }: { legend: string; children: ReactNode; hint?: string }) {
+function Fieldset({ legend, children, hint }: { legend: ReactNode; children: ReactNode; hint?: string }) {
   return (
     <fieldset className="flex flex-col gap-3">
       <legend className="mb-2 text-[14px] font-medium">{legend}</legend>
       {hint && <p className="-mt-2 text-[13px] text-muted">{hint}</p>}
       {children}
     </fieldset>
+  );
+}
+
+/** "Describe it": free text (typed or spoken) -> Intake agent draft. Never saves. */
+function IntakePanel({ initial, aiOff, onDraft, onUnavailable }: { initial: string; aiOff: boolean; onDraft: (d: PlanDraft) => void; onUnavailable: (text: string) => void }) {
+  const [text, setText] = useState(initial);
+  const draft = useAction((t: string) => api.draftPlan(t, browserTimeZone()), [], onDraft);
+  const fill = () => draft.mutate(text.trim(), { onError: (e) => { if (e instanceof ApiError && e.status === 503) onUnavailable(text.trim()); } });
+  return (
+    <Panel className="flex flex-col gap-4 p-5 sm:p-6">
+      <TextArea label="Describe your plan" rows={6} value={text} onChange={(e) => setText(e.target.value)} maxLength={2000}
+        placeholder="I'm at a conference in Philadelphia Jan 17–19, free after 5 PM. Up for food and a museum with 2–3 people."
+        hint="Where, when you're free, what you'd enjoy and how many people. Your text goes to Meta's Muse Spark to draft the form below; nothing is saved until you review it." />
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="button" variant="agent" size="lg" onClick={fill} loading={draft.isPending} disabled={aiOff || text.trim().length === 0}
+          icon={<Sparkles className="size-4" aria-hidden />}>{draft.isPending ? "Drafting…" : "Fill with AI"}</Button>
+        <VoiceButton onText={(t) => setText((x) => (x ? `${x} ${t}` : t))} />
+      </div>
+      {aiOff ? <p className="text-[14px] text-muted">The Intake agent is unavailable right now. Use Fill manually instead.</p> : <InlineError error={draft.error} />}
+    </Panel>
   );
 }
 
@@ -27,33 +48,44 @@ export function CreatePlan() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const tz0 = browserTimeZone();
-  const [activity, setActivity] = useState(params.get("activity") ?? "conference");
-  const [title, setTitle] = useState("");
-  const [goal, setGoal] = useState(params.get("goal") ?? "");
-  const [city, setCity] = useState("");
-  const [timezone, setTimezone] = useState(TIMEZONES.includes(tz0) ? tz0 : "America/Chicago");
-  const [startDate, setStartDate] = useState(nextWeek());
-  const [endDate, setEndDate] = useState(nextWeek());
-  const [windows, setWindows] = useState<LocalWindow[]>([{ date: nextWeek(), from: "17:00", to: "21:00" }]);
-  const [interests, setInterests] = useState<string[]>([]);
+  const [entry, setEntry] = useState<"describe" | "manual">("describe");
+  const [form, setForm] = useState<PlanForm>(() => ({
+    activity: params.get("activity") ?? "conference", title: "", goal: params.get("goal") ?? "", city: "", timezone: TIMEZONES.includes(tz0) ? tz0 : "America/Chicago",
+    startDate: nextWeek(), endDate: nextWeek(), windows: [{ date: nextWeek(), from: "17:00", to: "21:00" }],
+    interests: [], intent: "friends", size: [3, 4], groupOnly: true,
+  }));
+  const { activity, title, goal, city, timezone, startDate, endDate, windows, interests, intent, size, groupOnly } = form;
+  const [filled, setFilled] = useState<Set<FormKey>>(new Set());
+  const [draft, setDraft] = useState<PlanDraft | null>(null);
+  const [aiOff, setAiOff] = useState(false);
   const [custom, setCustom] = useState("");
-  const [intent, setIntent] = useState("friends");
-  const [size, setSize] = useState<[number, number]>([3, 4]);
-  const [groupOnly, setGroupOnly] = useState(true);
   const [preview, setPreview] = useState("");
   const [mode, setMode] = useState<DiscoveryMode>("private_browse");
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
-  const toggleInterest = (t: string) => setInterests((xs) => (xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t].slice(0, 10)));
-  const setWindow = (i: number, patch: Partial<LocalWindow>) => setWindows((ws) => ws.map((w, j) => (j === i ? { ...w, ...patch } : w)));
+  /** User edits clear the "filled by AI" marker: the value is now theirs. */
+  const set = (patch: Partial<PlanForm>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    setFilled((s) => new Set([...s].filter((k) => !(k in patch))));
+  };
+  const ai = (k: FormKey) => (filled.has(k) ? <AiMark /> : null);
 
-  const changeStart = (d: string) => {
-    setStartDate(d);
-    if (endDate < d) setEndDate(d);
-    setWindows((ws) => ws.map((w) => (w.date < d ? { ...w, date: d } : w)));
+  const toggleInterest = (t: string) => set({ interests: interests.includes(t) ? interests.filter((x) => x !== t) : [...interests, t].slice(0, 10) });
+  const addCustom = () => { if (custom.trim()) { toggleInterest(custom.trim().toLowerCase()); setCustom(""); } };
+  const setWindow = (i: number, patch: Partial<LocalWindow>) => set({ windows: windows.map((w, j) => (j === i ? { ...w, ...patch } : w)) });
+  const changeStart = (d: string) => set({ startDate: d, endDate: endDate < d ? d : endDate, windows: windows.map((w) => (w.date < d ? { ...w, date: d } : w)) });
+
+  const applyDraft = (d: PlanDraft) => {
+    const { patch, filled: keysFilled } = draftToForm(d, form);
+    setForm((f) => ({ ...f, ...patch }));
+    setFilled(new Set(keysFilled));
+    setDraft(d);
+    const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }));
   };
 
   const submit = async (e: FormEvent) => {
@@ -76,6 +108,10 @@ export function CreatePlan() {
     } catch (err) { setError(err); } finally { setBusy(false); }
   };
 
+  const sizes = ([[2, 2], [2, 3], [3, 4], [4, 4]] as [number, number][]);
+  if (!sizes.some(([a, b]) => a === size[0] && b === size[1])) sizes.push(size);
+  const missing = [...new Set(draft?.missing.map((m) => MISSING_COPY[m] ?? m.replace(/_/g, " ")) ?? [])];
+
   return (
     <AppShell>
       <header className="mb-6">
@@ -83,31 +119,56 @@ export function CreatePlan() {
         <p className="mt-1 flex items-center gap-1.5 text-[15px] text-muted"><Lock className="size-4" aria-hidden /> Your private itinerary is not public.</p>
       </header>
 
-      <form onSubmit={submit} className="flex flex-col gap-5">
+      <div className="mb-5">
+        <Tabs idBase="entry" label="How to create your plan" value={entry} onChange={setEntry}
+          options={[{ value: "describe", label: <><Sparkles className="size-4 text-violet" aria-hidden /> Describe it</> }, { value: "manual", label: "Fill manually" }]} />
+      </div>
+
+      <div role="tabpanel" id="entry-panel" aria-labelledby={`entry-tab-${entry}`} className="flex flex-col gap-5">
+      <div hidden={entry !== "describe"}>
+        <IntakePanel initial={params.get("goal") ?? ""} aiOff={aiOff} onDraft={applyDraft}
+          onUnavailable={(text) => { setAiOff(true); setEntry("manual"); if (!goal.trim()) set({ goal: text }); }} />
+      </div>
+      {entry === "manual" && aiOff && <p role="status" className="rounded-2xl bg-raised px-4 py-3 text-[14.5px]">The Intake agent is unavailable right now, so fill in the form yourself.</p>}
+
+      {(entry === "manual" || draft) && (
+      <form ref={formRef} onSubmit={submit} className="flex scroll-mt-20 flex-col gap-5">
+        {entry === "describe" && draft && (
+          <Panel as="aside" className="rise border-violet/20 bg-violet-soft/60 p-5 text-[14.5px]">
+            <p className="flex items-center gap-2 font-medium text-violet-ink"><Sparkles className="size-4" aria-hidden /> Drafted by Intake agent. Review every field; nothing is saved yet.</p>
+            {draft.notes && <p className="mt-1.5">{draft.notes}</p>}
+            {missing.length > 0 && (
+              <div className="mt-3">
+                <p className="font-medium">Still needed from you</p>
+                <ul className="mt-1 list-disc pl-5">{missing.map((m) => <li key={m}>{m}</li>)}</ul>
+              </div>
+            )}
+          </Panel>
+        )}
         <Panel className="flex flex-col gap-5 p-5 sm:p-6">
-          <Fieldset legend="What kind of plan?">
+          <Fieldset legend={<>What kind of plan?{ai("activity")}</>}>
             <div className="flex flex-wrap gap-2">
-              {ACTIVITIES.map((a) => <Chip key={a.value} selected={activity === a.value} onClick={() => setActivity(a.value)}>{a.label}</Chip>)}
+              {ACTIVITIES.map((a) => <Chip key={a.value} selected={activity === a.value} onClick={() => set({ activity: a.value })}>{a.label}</Chip>)}
             </div>
           </Fieldset>
-          <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} placeholder="Philly tech conference, evenings free" />
+          <TextField label={<>Title{ai("title")}</>} value={title} onChange={(e) => set({ title: e.target.value })} required maxLength={120} placeholder="Philly tech conference, evenings free" />
           <div className="flex flex-col gap-2">
-            <TextArea label="Your goal, in your words" rows={4} value={goal} onChange={(e) => setGoal(e.target.value)} required maxLength={2000}
+            <TextArea label={<>Your goal, in your words{ai("goal")}</>} rows={4} value={goal} onChange={(e) => set({ goal: e.target.value })} required maxLength={2000}
               placeholder="I'm in Philadelphia for a tech conference Jan 17–19 and would love to explore after 5 PM."
               hint="Private. Only you and, with your consent, your Gather Agent read this." />
-            <VoiceButton onText={(t) => setGoal((g) => (g ? `${g} ${t}` : t))} />
+            {entry === "manual" && <VoiceButton onText={(t) => set({ goal: goal ? `${goal} ${t}` : t })} />}
           </div>
         </Panel>
 
         <Panel className="flex flex-col gap-5 p-5 sm:p-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <TextField label="City or region" value={city} onChange={(e) => setCity(e.target.value)} required maxLength={80} placeholder="Philadelphia" />
-            <SelectField label="Time zone" value={timezone} onChange={(e) => setTimezone(e.target.value)}
-              options={TIMEZONES.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))} />
-            <TextField label="From" type="date" value={startDate} onChange={(e) => changeStart(e.target.value)} required />
-            <TextField label="To" type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} required />
+            <TextField label={<>City or region{ai("city")}</>} value={city} onChange={(e) => set({ city: e.target.value })} required maxLength={80} placeholder="Philadelphia" />
+            <SelectField label={<>Time zone{ai("timezone")}</>} value={timezone} onChange={(e) => set({ timezone: e.target.value })}
+              options={[...new Set([...TIMEZONES, timezone])].map((z) => ({ value: z, label: z.replace(/_/g, " ") }))} />
+            <TextField label={<>From{ai("startDate")}</>} type="date" value={startDate} onChange={(e) => changeStart(e.target.value)} required />
+            <TextField label={<>To{ai("endDate")}</>} type="date" value={endDate} min={startDate} onChange={(e) => set({ endDate: e.target.value })} required />
           </div>
-          <Fieldset legend="When you're free" hint={`Local time in ${timezone.replace(/_/g, " ")}. Your exact times stay private; the agent only learns whether a group overlaps.`}>
+          <Fieldset legend={<>When you're free{ai("windows")}</>} hint={`Local time in ${timezone.replace(/_/g, " ")}. Your exact times stay private; the agent only learns whether a group overlaps.`}>
             <ul className="flex flex-col gap-3">
               {windows.map((w, i) => (
                 <li key={i} className="grid grid-cols-[1fr_auto] items-end gap-2 rounded-2xl bg-raised p-3 sm:grid-cols-[1.3fr_1fr_1fr_auto]">
@@ -116,7 +177,7 @@ export function CreatePlan() {
                     <TextField label="From" type="time" value={w.from} onChange={(e) => setWindow(i, { from: e.target.value })} required />
                     <TextField label="Until" type="time" value={w.to} onChange={(e) => setWindow(i, { to: e.target.value })} required />
                   </div>
-                  <button type="button" onClick={() => setWindows((ws) => ws.filter((_, j) => j !== i))} disabled={windows.length === 1}
+                  <button type="button" onClick={() => set({ windows: windows.filter((_, j) => j !== i) })} disabled={windows.length === 1}
                     aria-label="Remove this time" className="press col-start-2 row-start-1 grid size-11 place-items-center rounded-full text-muted hover:bg-sunk disabled:opacity-40 sm:col-start-auto sm:row-start-auto">
                     <Trash2 className="size-4" aria-hidden />
                   </button>
@@ -125,34 +186,34 @@ export function CreatePlan() {
             </ul>
             <div>
               <Button type="button" variant="ghost" size="sm" icon={<Plus className="size-4" aria-hidden />}
-                onClick={() => setWindows((ws) => [...ws, { date: ws.at(-1)?.date ?? startDate, from: "17:00", to: "21:00" }])}>Add another time</Button>
+                onClick={() => set({ windows: [...windows, { date: windows.at(-1)?.date ?? startDate, from: "17:00", to: "21:00" }] })}>Add another time</Button>
             </div>
           </Fieldset>
         </Panel>
 
         <Panel className="flex flex-col gap-5 p-5 sm:p-6">
-          <Fieldset legend="Interests" hint="Broad tags only. They help explain why someone might be a good fit.">
+          <Fieldset legend={<>Interests{ai("interests")}</>} hint="Broad tags only. They help explain why someone might be a good fit.">
             <div className="flex flex-wrap gap-2">
               {[...new Set([...INTEREST_SUGGESTIONS, ...interests])].map((t) => <Chip key={t} selected={interests.includes(t)} onClick={() => toggleInterest(t)}>{t}</Chip>)}
             </div>
             <div className="flex gap-2">
               <input aria-label="Add your own interest" value={custom} onChange={(e) => setCustom(e.target.value)} maxLength={30} placeholder="Add your own"
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (custom.trim()) { toggleInterest(custom.trim().toLowerCase()); setCustom(""); } } }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
                 className="min-h-11 flex-1 rounded-xl border border-line bg-surface px-3.5 outline-none focus:border-violet" />
-              <Button type="button" variant="secondary" onClick={() => { if (custom.trim()) { toggleInterest(custom.trim().toLowerCase()); setCustom(""); } }}>Add</Button>
+              <Button type="button" variant="secondary" onClick={addCustom}>Add</Button>
             </div>
           </Fieldset>
           <div className="grid gap-4 sm:grid-cols-2">
-            <SelectField label="Looking for" value={intent} onChange={(e) => setIntent(e.target.value)} options={INTENTS} />
-            <Fieldset legend="Group size (including you)">
-              <div className="flex gap-2">
-                {([[2, 2], [2, 3], [3, 4], [4, 4]] as [number, number][]).map(([a, b]) => (
-                  <Chip key={`${a}-${b}`} selected={size[0] === a && size[1] === b} onClick={() => setSize([a, b])}><span className="num">{a === b ? a : `${a}–${b}`}</span></Chip>
+            <SelectField label={<>Looking for{ai("intent")}</>} value={intent} onChange={(e) => set({ intent: e.target.value })} options={INTENTS} />
+            <Fieldset legend={<>Group size (including you){ai("size")}</>}>
+              <div className="flex flex-wrap gap-2">
+                {sizes.map(([a, b]) => (
+                  <Chip key={`${a}-${b}`} selected={size[0] === a && size[1] === b} onClick={() => set({ size: [a, b] })}><span className="num">{a === b ? a : `${a}–${b}`}</span></Chip>
                 ))}
               </div>
             </Fieldset>
           </div>
-          <Switch checked={groupOnly} onChange={setGroupOnly} label="Group meetups only" description="No 1:1 meetups with people you haven't met. Recommended." />
+          <Switch checked={groupOnly} onChange={(v) => set({ groupOnly: v })} label={<>Group meetups only{ai("groupOnly")}</>} description="No 1:1 meetups with people you haven't met. Recommended." />
           <TextArea label="Public-safe preview" optional rows={2} maxLength={200} value={preview} onChange={(e) => setPreview(e.target.value)}
             placeholder="Conference-goer, into food and walking tours." hint="The only text an eligible match could see before accepting. No dates, places or contact details." />
         </Panel>
@@ -186,6 +247,8 @@ export function CreatePlan() {
           <span className="text-[13.5px] text-muted">{consent ? "Next: ask Gather Agent to find your people." : "Your agent won't run until you allow AI processing."}</span>
         </div>
       </form>
+      )}
+      </div>
     </AppShell>
   );
 }
