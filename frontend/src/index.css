@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/*
+  InGather tokens. One ground (off-white), one ink (charcoal), near-black primary actions.
+  Brand hues are spent sparingly: rose = selection + brand mark, violet = the AI agent,
+  emerald = consent/safety. The rose->violet gradient appears only in the brand mark,
+  story rings and generated plan covers (brand constraint from the spec).
+*/
+@theme {
+  --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-ground: #fafafc;
+  --color-surface: #ffffff;
+  --color-raised: #f3f2f7;
+  --color-sunk: #ebe9f1;
+  --color-line: #e6e4ec;
+  --color-control: #cfccd8;
+  --color-ink: #1f2230;
+  --color-muted: #5f6270;
+  --color-rose: #d94693;
+  --color-rose-ink: #b02d72;
+  --color-rose-soft: #fbeaf3;
+  --color-violet: #7c57c2;
+  --color-violet-ink: #6a45b0;
+  --color-violet-soft: #f1ecfa;
+  --color-emerald: #168b73;
+  --color-emerald-ink: #0f6e5b;
+  --color-emerald-soft: #e3f4ef;
+  --color-amber-soft: #fdf5e4;
+  --color-amber-ink: #8a5a00;
+  --color-danger: #c4242a;
+  --color-danger-soft: #fdecec;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--color-rose-soft); color: var(--color-ink); }
+  :focus-visible { outline: 2px solid var(--color-violet); outline-offset: 2px; border-radius: 6px; }
+  input, textarea, select, button { font: inherit; color: inherit; }
+  input, textarea { caret-color: var(--color-rose); }
+  /* 16px inputs stop iOS from zooming the page on focus. */
+  input, textarea, select { font-size: 16px; }
+  @media (min-width: 768px) { input, textarea, select { font-size: 15px; } }
+  h1, h2, h3 { text-wrap: balance; }
+  .num { font-variant-numeric: tabular-nums; }
+  dialog::backdrop { background: rgb(31 34 48 / 0.42); }
+}
+
+@layer components {
+  .press { transition: transform 140ms var(--ease-out), background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
+  .press:active:not(:disabled) { transform: scale(0.97); }
+
+  .rise { animation: rise 260ms var(--ease-out) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+  .dialog-pop[open] { animation: pop 200ms var(--ease-out); }
+  @keyframes pop { from { opacity: 0; transform: scale(0.96); } }
+
+  .live-dot { animation: breathe 1.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: 0.35; } }
+
+  .skeleton { background: var(--color-sunk); border-radius: 6px; }
+
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Brand story ring: the spec pins the rose->violet gradient for brand moments. */
+  .story-ring { background: conic-gradient(from 210deg, var(--color-rose), var(--color-violet), var(--color-rose)); } /* taste-skill-ignore */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .dialog-pop[open] { animation: fade 160ms ease both; }
+  .live-dot { animation: none; }
+  .press:active:not(:disabled) { transform: none; }
+  @keyframes fade { from { opacity: 0; } }
+}
