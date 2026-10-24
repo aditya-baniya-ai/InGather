@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field, StrictBool, field_validator, model_validator
 
 from app.models import AgentRun, Message, Plan, User
 from app.services.clock import as_utc
@@ -332,3 +332,30 @@ class ReportIn(BaseModel):
     details: str | None = Field(None, max_length=1000)
     reported_user_id: UUID | None = None
     proposal_id: UUID | None = None
+
+
+# --- verification ------------------------------------------------------------------------------
+class VerificationOut(BaseModel):
+    status: Literal["unverified", "verified_demo", "verified_live"]
+    provider: Literal["demo", "stripe"] | None
+    is_adult: bool
+    verified_at: UTC | None
+    demo_available: bool
+    stripe_available: bool
+    stripe_test_mode: bool
+
+
+class DemoVerifyIn(BaseModel):
+    confirm_adult: StrictBool  # JSON true only; 1/"true" are rejected
+
+    @field_validator("confirm_adult")
+    @classmethod
+    def _must_confirm(cls, v: bool) -> bool:
+        if v is not True:
+            raise ValueError("confirm_adult must be true")
+        return v
+
+
+class StripeStartOut(BaseModel):
+    url: str
+

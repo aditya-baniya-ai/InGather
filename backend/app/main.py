@@ -14,6 +14,7 @@ ROUTERS = [
     "app.api.agent",
     "app.api.proposals",
     "app.api.safety",
+    "app.api.verification",
     "app.ai.routes",  # voice transcription, cover images
     "app.ai.connector",  # MCP endpoint for the user's own Muse agent
 ]
