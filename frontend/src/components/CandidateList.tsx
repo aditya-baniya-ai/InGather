@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, RefreshCw, Send, X } from "lucide-react";
+import { Check, Heart, RefreshCw, Send, X } from "lucide-react";
 import { api, ApiError, type Feedback, type Member, type Proposal, type Run } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useSetProposal } from "../lib/hooks";
@@ -12,7 +12,7 @@ function CandidateCard({ m, selected, onToggle, onPass, busy }: { m: Member; sel
   return (
     <li className={cx("rise rounded-[20px] border bg-surface p-4 transition-colors duration-200", selected ? "border-ink" : "border-line")}>
       <div className="flex items-start gap-3">
-        <Avatar name={m.display_name} src={m.avatar_url} size={48} />
+        <Avatar name={m.display_name} src={m.avatar_url} size={52} ring />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-[16px] font-semibold">{m.display_name}</h3>
@@ -23,7 +23,7 @@ function CandidateCard({ m, selected, onToggle, onPass, busy }: { m: Member; sel
         <label className="press grid size-11 shrink-0 cursor-pointer place-items-center rounded-full hover:bg-raised">
           <input type="checkbox" checked={selected} onChange={onToggle} className="peer sr-only" />
           <span className={cx("grid size-6 place-items-center rounded-md border-2 transition-colors peer-focus-visible:outline-2 peer-focus-visible:outline-violet",
-            selected ? "border-ink bg-ink text-white" : "border-control")}>{selected && <Check className="size-4" strokeWidth={3} aria-hidden />}</span>
+            selected ? "heart-pop ig-grad border-transparent text-white" : "border-control")}>{selected && <Check className="size-4" strokeWidth={3} aria-hidden />}</span>
           <span className="sr-only">Select {m.display_name} to invite</span>
         </label>
       </div>
@@ -42,7 +42,8 @@ function CandidateCard({ m, selected, onToggle, onPass, busy }: { m: Member; sel
         </div>
       ) : (
         <div className="mt-3 flex gap-2">
-          <Button variant={selected ? "primary" : "secondary"} size="sm" onClick={onToggle} icon={selected ? <Check className="size-4" aria-hidden /> : undefined}>
+          <Button variant={selected ? "primary" : "secondary"} size="sm" onClick={onToggle} className={selected ? "heart-pop" : undefined}
+            icon={selected ? <Heart className="size-4 fill-current" aria-hidden /> : <Heart className="size-4 text-ig-pink" aria-hidden />}>
             {selected ? "Selected to invite" : "Interested"}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setPassing(true)} disabled={busy} icon={<X className="size-4" aria-hidden />}>Pass</Button>

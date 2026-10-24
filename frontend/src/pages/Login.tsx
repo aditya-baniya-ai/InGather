@@ -76,7 +76,7 @@ export function Login() {
       <div className="mx-auto flex max-w-[520px] flex-col gap-6">
         <Link to="/" className="self-start" aria-label="ingather home"><Wordmark /></Link>
         <section aria-labelledby="auth-title" className="rounded-[24px] border border-line bg-surface p-6 sm:p-8">
-          <h1 id="auth-title" className="font-display text-[36px] leading-none">{joining ? "Start privately" : "Welcome back"}</h1>
+          <h1 id="auth-title" className="font-display text-[36px] leading-none"><span className="ig-text">{joining ? "Start privately" : "Welcome back"}</span></h1>
           <p className="mt-2 text-[15px] text-muted">
             {joining ? "New accounts start unverified. Discovery stays off until identity and adulthood are verified." : "Sign in to your plans and invitations."}
           </p>

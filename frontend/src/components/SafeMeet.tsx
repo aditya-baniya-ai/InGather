@@ -5,7 +5,7 @@ import { api, type Member, type Proposal } from "../lib/api";
 import { useSetProposal } from "../lib/hooks";
 import { formatDateTime, localToUtcIso, utcToLocal } from "../lib/time";
 import { VENUE_CATEGORIES } from "../lib/vocab";
-import { Avatar, Button, InlineError, Panel, Pill, SelectField, TextField } from "./ui";
+import { Avatar, Burst, Button, InlineError, Panel, Pill, SelectField, TextField } from "./ui";
 
 export const participantsOf = (p: Proposal): Member[] => p.members.filter((m) => m.is_initiator || m.status === "accepted");
 
@@ -13,12 +13,12 @@ export function VenueTime({ p }: { p: Proposal }) {
   const cat = VENUE_CATEGORIES.find((c) => c.value === p.venue_category)?.label;
   return (
     <dl className="grid gap-3 sm:grid-cols-2">
-      <div className="flex gap-3 rounded-2xl bg-raised p-4">
-        <CalendarClock className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
+      <div className="flex gap-3 rounded-2xl bg-violet-soft p-4">
+        <CalendarClock className="mt-0.5 size-5 shrink-0 text-violet-ink" aria-hidden />
         <div><dt className="text-[13px] text-muted">When</dt><dd className="font-medium">{formatDateTime(p.start_at, p.timezone)}</dd></div>
       </div>
-      <div className="flex gap-3 rounded-2xl bg-raised p-4">
-        <MapPin className="mt-0.5 size-5 shrink-0 text-muted" aria-hidden />
+      <div className="flex gap-3 rounded-2xl bg-orange-soft p-4">
+        <MapPin className="mt-0.5 size-5 shrink-0 text-orange-ink" aria-hidden />
         <div>
           <dt className="text-[13px] text-muted">Where · public place</dt>
           <dd className="font-medium">{p.venue_label ?? "A public spot to be decided"}</dd>
@@ -98,8 +98,9 @@ export function SafeMeet({ p }: { p: Proposal }) {
         </Pill>
       </div>
       {confirmed && (
-        <div className="rise mt-4">
-          <p className="font-display text-[34px] leading-[1.05] tracking-[-0.01em]">You're all in.</p>
+        <div className="rise relative mt-4">
+          <Burst />
+          <p className="font-display text-[34px] leading-[1.05] tracking-[-0.01em]"><span className="ig-text">You're all in.</span></p>
           <p className="mt-2 max-w-prose text-[15px]">Meet in a public place, arrange your own transportation, and share details only with people you choose.</p>
         </div>
       )}
@@ -138,7 +139,7 @@ export function SafeMeet({ p }: { p: Proposal }) {
       <div className="mt-5 flex flex-wrap gap-2">
         <Button variant="secondary" onClick={async () => setShareNote(await shareDetails(p))} icon={<Share2 className="size-4" aria-hidden />}>Share with trusted contact</Button>
         {confirmed && (
-          <Link to={`/proposals/${p.id}/room`} className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-ink px-5 font-medium text-white hover:bg-[#33374a]">
+          <Link to={`/proposals/${p.id}/room`} className="press inline-flex min-h-11 items-center gap-2 rounded-full ig-grad btn-grad px-5 font-medium text-white">
             <MessageCircle className="size-4" aria-hidden /> Open Gather Room
           </Link>
         )}

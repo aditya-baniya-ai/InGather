@@ -115,13 +115,13 @@ export function CreatePlan() {
   return (
     <AppShell>
       <header className="mb-6">
-        <h1 className="font-display text-[36px] leading-[1.05] sm:text-[44px]">New private plan</h1>
+        <h1 className="font-display text-[36px] leading-[1.05] sm:text-[44px]">New <span className="ig-text">private</span> plan</h1>
         <p className="mt-1 flex items-center gap-1.5 text-[15px] text-muted"><Lock className="size-4" aria-hidden /> Your private itinerary is not public.</p>
       </header>
 
       <div className="mb-5">
         <Tabs idBase="entry" label="How to create your plan" value={entry} onChange={setEntry}
-          options={[{ value: "describe", label: <><Sparkles className="size-4 text-violet" aria-hidden /> Describe it</> }, { value: "manual", label: "Fill manually" }]} />
+          options={[{ value: "describe", label: <><Sparkles className="size-4" aria-hidden /> Describe it</> }, { value: "manual", label: "Fill manually" }]} />
       </div>
 
       <div role="tabpanel" id="entry-panel" aria-labelledby={`entry-tab-${entry}`} className="flex flex-col gap-5">

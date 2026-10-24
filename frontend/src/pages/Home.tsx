@@ -28,10 +28,10 @@ function Stories({ value, onChange }: { value: string | null; onChange: (v: stri
       {CATEGORIES.map((c) => {
         const active = value === c.activity;
         return (
-          <button key={c.label} onClick={() => onChange(c.activity)} aria-pressed={active}
+          <button key={c.label} onClick={() => onChange(active ? null : c.activity)} aria-pressed={active}
             className="press flex w-[68px] shrink-0 flex-col items-center gap-1.5 text-[12.5px]">
-            <span className={cx("block size-[64px] rounded-full p-[2.5px]", active ? "story-ring" : "bg-line")}>
-              <span className="block size-full overflow-hidden rounded-full border-[2.5px] border-ground">
+            <span className={cx("block size-[64px] rounded-full p-[2.5px] transition-transform duration-200 ease-[var(--ease-out)]", active ? "story-ring spin scale-105" : `cat-${c.activity ?? "other"} bg-[var(--cat)]/45`)}>
+              <span className="block size-full overflow-hidden rounded-full border-[2.5px] border-surface">
                 <Cover activity={c.activity ?? "other"} className="size-full" />
               </span>
             </span>
@@ -62,7 +62,7 @@ export function Home() {
   return (
     <AppShell>
       <header className="mb-6">
-        <h1 className="font-display text-[36px] leading-[1.05] tracking-[-0.01em] sm:text-[44px]">{greeting()}, {first}.</h1>
+        <h1 className="font-display text-[36px] leading-[1.05] tracking-[-0.01em] sm:text-[44px]">{greeting()}, <span className="ig-text">{first}.</span></h1>
         <p className="mt-1 text-[16px] text-muted">{fact}</p>
       </header>
 
@@ -85,7 +85,7 @@ export function Home() {
           : plans.isError ? <ErrorState error={plans.error} onRetry={() => plans.refetch()} what="your plans" />
             : shown.length === 0 ? (
               <EmptyState title={filter ? "No plans in this category yet." : "No plans yet."}
-                action={<Link to={filter ? `/create?activity=${filter}` : "/create"} className="press inline-flex min-h-11 items-center rounded-full bg-ink px-5 font-medium text-white">Create a private plan</Link>}>
+                action={<Link to={filter ? `/create?activity=${filter}` : "/create"} className="press inline-flex min-h-11 items-center rounded-full ig-grad btn-grad px-5 font-medium text-white">Create a private plan</Link>}>
                 Start with what you'd like to do. Your agent only searches when you ask.
               </EmptyState>
             ) : (

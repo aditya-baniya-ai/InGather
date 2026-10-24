@@ -30,7 +30,7 @@ export function NotAvailable() {
       <EyeOff className="mx-auto size-6 text-muted" aria-hidden />
       <h1 className="mt-3 text-[20px] font-semibold">This meetup isn't available</h1>
       <p className="mx-auto mt-1 max-w-sm text-[14.5px] text-muted">It may not exist, or you're not part of it. InGather never shows a group's details to people outside it.</p>
-      <Link to="/home" className="press mt-5 inline-flex min-h-11 items-center rounded-full bg-ink px-5 font-medium text-white">Back home</Link>
+      <Link to="/home" className="press mt-5 inline-flex min-h-11 items-center rounded-full ig-grad btn-grad px-5 font-medium text-white">Back home</Link>
     </div>
   );
 }

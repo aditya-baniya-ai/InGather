@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 /*
-  InGather tokens. One ground (off-white), one ink (charcoal), near-black primary actions.
-  Brand hues are spent sparingly: rose = selection + brand mark, violet = the AI agent,
-  emerald = consent/safety. The rose->violet gradient appears only in the brand mark,
-  story rings and generated plan covers (brand constraint from the spec).
+  InGather tokens. Dark ink text on white cards over a soft warm-to-cool wash.
+  Brand = the Instagram-style warm gradient (yellow > orange > pink > purple > blue):
+  primary actions, story rings, logo, active nav, progress. Violet/blue end = AI,
+  emerald = consent/safety, amber = warnings. Each activity has its own hue (.cat-*).
 */
 @theme {
   --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
@@ -33,6 +33,16 @@
   --color-danger: #c4242a;
   --color-danger-soft: #fdecec;
 
+  --color-ig-yellow: #feda75;
+  --color-ig-orange: #fa7e1e;
+  --color-ig-pink: #d62976;
+  --color-ig-purple: #962fbf;
+  --color-ig-blue: #4f5bd5;
+  --color-orange-ink: #b4520a;
+  --color-orange-soft: #fff0e3;
+  --color-blue-ink: #3a46b8;
+  --color-blue-soft: #eceefc;
+
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -40,7 +50,12 @@
 @layer base {
   html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
   body {
-    background: var(--color-ground);
+    background:
+      radial-gradient(1200px 520px at 0% -10%, rgb(254 218 117 / 0.22), transparent 60%),
+      radial-gradient(1000px 520px at 100% -5%, rgb(214 41 118 / 0.10), transparent 60%),
+      radial-gradient(900px 600px at 100% 100%, rgb(79 91 213 / 0.08), transparent 60%),
+      var(--color-ground);
+    background-attachment: fixed;
     color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 15px;
@@ -64,7 +79,7 @@
   .press { transition: transform 140ms var(--ease-out), background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
   .press:active:not(:disabled) { transform: scale(0.97); }
 
-  .rise { animation: rise 260ms var(--ease-out) both; }
+  .rise { animation: rise 260ms var(--ease-out) backwards; }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
 
   .dialog-pop[open] { animation: pop 200ms var(--ease-out); }
@@ -78,13 +93,59 @@
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
 
-  /* Brand story ring: the spec pins the rose->violet gradient for brand moments. */
-  .story-ring { background: conic-gradient(from 210deg, var(--color-rose), var(--color-violet), var(--color-rose)); } /* taste-skill-ignore */
+  /* Darkened action gradient keeps white labels readable across every stop.
+     The full bright spectrum is reserved for decorative rings and indicators. */
+  .ig-grad { background-image: linear-gradient(115deg, #b94a16 0%, var(--color-ig-pink) 34%, var(--color-ig-purple) 72%, var(--color-ig-blue) 100%); }
+  .ig-grad-full { background-image: linear-gradient(90deg, var(--color-ig-yellow), var(--color-ig-orange), var(--color-ig-pink), var(--color-ig-purple), var(--color-ig-blue)); }
+  .ig-text { background: linear-gradient(100deg, #a64a06, #b01f60 45%, #7a2299); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .btn-grad { background-size: 160% 100%; background-position: 0% 0; transition: transform 140ms var(--ease-out), background-position 300ms var(--ease-out), box-shadow 200ms ease; box-shadow: 0 6px 18px -8px rgb(214 41 118 / 0.6); }
+  @media (hover: hover) and (pointer: fine) { .btn-grad:hover:not(:disabled) { background-position: 60% 0; box-shadow: 0 8px 22px -8px rgb(150 47 191 / 0.65); } }
+  .btn-grad[aria-busy="true"], .grad-flow { animation: flow 1.6s linear infinite; background-size: 300% 100%; }
+  @keyframes flow { to { background-position: 150% 0; } }
+
+  /* Story ring: conic brand gradient; the active one slowly turns. */
+  .story-ring { background: conic-gradient(from var(--ring-a, 200deg), var(--color-ig-yellow), var(--color-ig-orange), var(--color-ig-pink), var(--color-ig-purple), var(--color-ig-blue), var(--color-ig-yellow)); }
+  .story-ring.spin { animation: ring-spin 6s linear infinite; }
+  @keyframes ring-spin { to { --ring-a: 560deg; } }
+
+  /* Category hues: --cat (solid), --cat-soft (tint), --cat-ink (text on tint, >= 4.5:1). */
+  .cat-travel { --cat: #fa7e1e; --cat-soft: #fff0e3; --cat-ink: #a64a06; }
+  .cat-conference { --cat: #4f5bd5; --cat-soft: #eceefc; --cat-ink: #3a46b8; }
+  .cat-study { --cat: #962fbf; --cat-soft: #f5eafa; --cat-ink: #7a2299; }
+  .cat-coffee { --cat: #c98a00; --cat-soft: #fdf3d6; --cat-ink: #7d5500; }
+  .cat-hackathon { --cat: #d62976; --cat-soft: #fce8f1; --cat-ink: #b01f60; }
+  .cat-event { --cat: #e8467c; --cat-soft: #fdeaf0; --cat-ink: #b4235a; }
+  .cat-other { --cat: #168b73; --cat-soft: #e3f4ef; --cat-ink: #0f6e5b; }
+  .cat-pill { background: var(--cat-soft); color: var(--cat-ink); }
+
+  .card { background: var(--color-surface); border-radius: 24px; box-shadow: 0 1px 2px rgb(31 34 48 / 0.04), 0 10px 30px -14px rgb(150 47 191 / 0.22); }
+  .lift { transition: transform 220ms var(--ease-out), box-shadow 220ms var(--ease-out); }
+  @media (hover: hover) and (pointer: fine) { .lift:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgb(31 34 48 / 0.05), 0 18px 40px -16px rgb(214 41 118 / 0.35); } }
+
+  .heart-pop { animation: heart-pop 320ms var(--ease-out); }
+  @keyframes heart-pop { 0% { transform: scale(0.9); } 45% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+  .agent-pulse { animation: agent-pulse 1.4s ease-in-out infinite; }
+  @keyframes agent-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(124 87 194 / 0.35); } 50% { box-shadow: 0 0 0 6px rgb(124 87 194 / 0); } }
+
+  /* Confirmation burst: particles fly out from the centre once. */
+  .burst { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+  .burst i { position: absolute; left: var(--x0, 50%); top: 40%; width: 8px; height: 8px; border-radius: 2px; background: var(--c); opacity: 0;
+    animation: burst 900ms var(--ease-out) var(--d, 0ms) forwards; }
+  @keyframes burst { 0% { opacity: 1; transform: translate(0, 0) rotate(0) scale(0.6); } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)) scale(1); } }
+
+  .tab-ind { transition: transform 260ms var(--ease-out), width 260ms var(--ease-out); }
 }
+
+@property --ring-a { syntax: "<angle>"; inherits: false; initial-value: 200deg; }
 
 @media (prefers-reduced-motion: reduce) {
   .rise, .dialog-pop[open] { animation: fade 160ms ease both; }
-  .live-dot { animation: none; }
+  .live-dot, .story-ring.spin, .btn-grad[aria-busy="true"], .grad-flow, .agent-pulse, .heart-pop { animation: none; }
+  .burst { display: none; }
+  .lift:hover { transform: none; }
+  .tab-ind { transition: none; }
   .press:active:not(:disabled) { transform: none; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   @keyframes fade { from { opacity: 0; } }
 }

@@ -1,10 +1,19 @@
 import type { ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { Bot, Home, Inbox, PlusSquare, ShieldCheck, UserRound } from "lucide-react";
 import { useInvitations } from "../lib/hooks";
 import { AccountMenu } from "./AccountMenu";
 import { LogoMark, Wordmark } from "./Brand";
 import { cx } from "./ui";
+
+/** Each nav item gets its own soft palette tile; the active one fills with the brand gradient. */
+const TILE: Record<string, string> = {
+  "/home": "bg-orange-soft text-orange-ink",
+  "/invitations": "bg-rose-soft text-rose-ink",
+  "/create": "bg-amber-soft text-amber-ink",
+  "/agent": "bg-violet-soft text-violet-ink",
+  "/profile": "bg-blue-soft text-blue-ink",
+};
 
 const NAV = [
   { to: "/home", label: "Home", icon: Home },
@@ -23,15 +32,18 @@ function useInviteCount() {
 
 function Badge({ n }: { n: number }) {
   if (!n) return null;
-  return <span className="num grid min-w-5 h-5 place-items-center rounded-full bg-rose px-1.5 text-[11.5px] font-semibold text-white" aria-label={`${n} new`}>{n}</span>;
+  return <span className="num grid min-w-5 h-5 place-items-center rounded-full ig-grad px-1.5 text-[11.5px] font-semibold text-white" aria-label={`${n} new`}>{n}</span>;
 }
 
 export function AppShell({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
   const invites = useInviteCount();
+  const { pathname } = useLocation();
+  const activePath = pathname.startsWith("/plans/") ? "/agent" : pathname.startsWith("/proposals/") ? "/invitations" : pathname;
+  const isCurrent = (to: string) => activePath === to;
   return (
     <div className="min-h-dvh md:flex">
       {/* Desktop / tablet rail */}
-      <nav aria-label="Main" className="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-ground px-3 py-6 md:flex md:w-[76px] lg:w-[244px]">
+      <nav aria-label="Main" className="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line/70 bg-surface/50 px-3 py-6 md:flex md:w-[76px] lg:w-[244px]">
         <Link to="/home" className="mb-8 flex min-h-11 items-center px-2" aria-label="ingather home">
           <span className="lg:hidden"><LogoMark size={30} /></span>
           <Wordmark className="hidden lg:inline-flex" />
@@ -39,12 +51,12 @@ export function AppShell({ children, aside }: { children: ReactNode; aside?: Rea
         <ul className="flex flex-col gap-1">
           {NAV.map(({ to, label, icon: Icon }) => (
             <li key={to}>
-              <NavLink to={to} className={({ isActive }) => cx(
-                "press flex min-h-12 items-center gap-4 rounded-xl px-3 text-[15px] hover:bg-raised",
-                isActive ? "bg-raised font-semibold text-ink" : "text-ink/85")}>
-                {({ isActive }) => (<>
-                  <span className="relative">
-                    <Icon className="size-[22px]" strokeWidth={isActive ? 2.25 : 1.75} aria-hidden />
+              <NavLink to={to} className={() => cx(
+                "press group flex min-h-12 items-center gap-3 rounded-2xl px-2 text-[15px] hover:bg-surface/80",
+                isCurrent(to) ? "bg-surface font-semibold text-ink shadow-[0_6px_20px_-12px_rgb(214_41_118/0.5)]" : "text-ink/85")}>
+                {() => (<>
+                  <span className={cx("relative grid size-9 place-items-center rounded-xl transition-colors duration-200", isCurrent(to) ? "ig-grad text-white" : TILE[to])}>
+                    <Icon className="size-[20px]" strokeWidth={isCurrent(to) ? 2.25 : 1.75} aria-hidden />
                     {to === "/invitations" && invites > 0 && <span className="absolute -right-2 -top-2 lg:hidden"><Badge n={invites} /></span>}
                   </span>
                   <span className="hidden flex-1 lg:inline">{label}</span>
@@ -59,7 +71,7 @@ export function AppShell({ children, aside }: { children: ReactNode; aside?: Rea
       </nav>
 
       {/* Mobile top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-ground/95 px-4 pt-[env(safe-area-inset-top)] md:hidden">
+      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line/70 bg-surface/90 backdrop-blur px-4 pt-[env(safe-area-inset-top)] md:hidden">
         <Link to="/home" aria-label="ingather home"><Wordmark /></Link>
         <div className="flex items-center gap-1">
           <NavLink to="/invitations" className="press relative grid size-11 place-items-center rounded-full hover:bg-raised" aria-label={`Invitations${invites ? `, ${invites} new` : ""}`}>
@@ -85,9 +97,10 @@ export function AppShell({ children, aside }: { children: ReactNode; aside?: Rea
         <ul className="grid grid-cols-5">
           {NAV.map(({ to, label, icon: Icon }) => (
             <li key={to}>
-              <NavLink to={to} className={({ isActive }) => cx("flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", isActive ? "font-semibold text-ink" : "text-muted")}>
-                {({ isActive }) => (<>
-                  <Icon className="size-6" strokeWidth={isActive ? 2.25 : 1.6} aria-hidden />
+              <NavLink to={to} className={() => cx("press relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", isCurrent(to) ? "font-semibold text-ink" : "text-muted")}>
+                {() => (<>
+                  {isCurrent(to) && <span aria-hidden className="rise ig-grad absolute top-0 h-[3px] w-8 rounded-b-full" />}
+                  <Icon className="size-6" strokeWidth={isCurrent(to) ? 2.25 : 1.6} aria-hidden />
                   <span>{label === "Gather Agent" ? "Agent" : label}</span>
                 </>)}
               </NavLink>
@@ -101,7 +114,7 @@ export function AppShell({ children, aside }: { children: ReactNode; aside?: Rea
 
 export function SafetyTips() {
   return (
-    <div className="rounded-[20px] bg-raised p-5">
+    <div className="rounded-[24px] bg-gradient-to-br from-emerald-soft to-surface p-5 shadow-[0_10px_30px_-16px_rgb(22_139_115/0.35)]">
       <h2 className="flex items-center gap-2 text-[15px] font-semibold"><ShieldCheck className="size-4 text-emerald" aria-hidden /> Meeting someone new</h2>
       <ul className="mt-3 flex flex-col gap-2.5 text-[14px] leading-snug text-ink/90">
         <li>Meet in a public, populated place.</li>

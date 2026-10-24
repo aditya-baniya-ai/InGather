@@ -40,7 +40,7 @@ function AgentAvatar({ agent, dim }: { agent: AgentName; dim?: boolean }) {
 function AgentChip({ agent, state }: { agent: AgentName; state: AgentState }) {
   const s = STATE[state];
   return (
-    <li className="flex min-h-9 items-center gap-2 rounded-full bg-surface py-1 pr-3 pl-1 ring-1 ring-line" title={AGENTS[agent].role}>
+    <li className={cx("flex min-h-9 items-center gap-2 rounded-full bg-surface py-1 pr-3 pl-1 ring-1 transition-shadow", state === "working" ? "agent-pulse ring-violet/40" : "ring-line")} title={AGENTS[agent].role}>
       <AgentAvatar agent={agent} dim={state === "waiting"} />
       <span className="text-[13.5px] font-medium">{AGENTS[agent].label}</span>
       <span className={cx("inline-flex items-center gap-1 text-[12.5px]", s.cls)}>
@@ -103,7 +103,7 @@ function EventRow({ e, tz, mode }: { e: RunEvent; tz: string; mode: Run["mode"] 
         {(agent || e.kind !== "model") && <span className="sr-only">{kindLabel}: </span>}
         <div className="mb-1 flex flex-wrap items-center gap-1.5 empty:hidden">
           {(agent || e.kind === "model") && <span className="text-[12.5px] font-medium text-violet-ink">{agent ?? kindLabel}</span>}
-          {e.kind === "tool" && e.tool_name && <code className="rounded-md bg-ink px-1.5 py-0.5 font-mono text-[12px] leading-5 text-white">{e.tool_name}</code>}
+          {e.kind === "tool" && e.tool_name && <code className="rounded-md bg-violet-ink px-1.5 py-0.5 font-mono text-[12px] leading-5 text-white">{e.tool_name}</code>}
           {verdict && (verdict.approved
             ? <Pill tone="emerald"><Check className="size-3" aria-hidden /> Approved{verdict.target && ` · ${AGENTS[verdict.target].label}`}</Pill>
             : <Pill tone="amber">Sent back to {verdict.target ? AGENTS[verdict.target].label : "an agent"}</Pill>)}
@@ -129,12 +129,12 @@ export function AgentTimeline({ run, tz, onRetry }: { run: Run; tz: string; onRe
         <span className="text-[13px] text-muted">{TRIGGER[run.trigger] ?? run.trigger} · <span className="num">{tools}</span> tool {tools === 1 ? "call" : "calls"}</span>
       </div>
       {orchestra && <Orchestra states={agentStates(events, run.status)} />}
-      <ol className="relative before:absolute before:left-[13.5px] before:top-2 before:bottom-2 before:w-px before:bg-line" aria-live="polite" aria-label="Agent activity">
+      <ol className="relative before:absolute before:left-[13.5px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gradient-to-b before:from-ig-orange/50 before:via-ig-pink/40 before:to-ig-blue/40" aria-live="polite" aria-label="Agent activity">
         {events.map((e) => <EventRow key={e.seq} e={e} tz={tz} mode={run.mode} />)}
         {run.status === "running" && (
           <li className="relative flex items-center gap-3 pt-1">
             <span className="relative z-10 grid size-7 place-items-center rounded-full bg-violet-soft"><span className="live-dot size-2 rounded-full bg-violet" /></span>
-            <span className="text-[14px] text-muted">Working…</span>
+            <span className="flex-1"><span className="text-[14px] text-muted">Working…</span><span aria-hidden className="mt-1.5 block h-1 max-w-[220px] overflow-hidden rounded-full bg-violet-soft"><span className="grad-flow ig-grad-full block h-full w-full" /></span></span>
           </li>
         )}
       </ol>

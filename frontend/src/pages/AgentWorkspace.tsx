@@ -210,10 +210,10 @@ export function AgentIndex() {
   if (active.length === 1) return <Navigate to={`/plans/${active[0].id}`} replace />;
   return (
     <AppShell aside={<AgentGuardrails />}>
-      <h1 className="mb-1 font-display text-[36px] leading-[1.05] sm:text-[44px]">Gather Agent</h1>
+      <h1 className="mb-1 font-display text-[36px] leading-[1.05] sm:text-[44px]">Gather <span className="ig-text">Agent</span></h1>
       <p className="mb-6 text-[15px] text-muted">Pick a plan. Your agent works on one private plan at a time.</p>
       {active.length === 0 ? (
-        <EmptyState title="Your agent needs a plan to work from." action={<Link to="/create" className="press inline-flex min-h-11 items-center rounded-full bg-ink px-5 font-medium text-white">Create a private plan</Link>} />
+        <EmptyState title="Your agent needs a plan to work from." action={<Link to="/create" className="press inline-flex min-h-11 items-center rounded-full ig-grad btn-grad px-5 font-medium text-white">Create a private plan</Link>} />
       ) : (
         <ul className="divide-y divide-line overflow-hidden rounded-[20px] border border-line bg-surface">
           {active.map((p) => (

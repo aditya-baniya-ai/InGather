@@ -8,8 +8,11 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden>
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#D94693" />
-          <stop offset="1" stopColor="#7C57C2" />
+          <stop offset="0" stopColor="#FEDA75" />
+          <stop offset="0.3" stopColor="#FA7E1E" />
+          <stop offset="0.6" stopColor="#D62976" />
+          <stop offset="0.85" stopColor="#962FBF" />
+          <stop offset="1" stopColor="#4F5BD5" />
         </linearGradient>
       </defs>
       <g fill="none" stroke={`url(#${id})`} strokeWidth="2.6">
@@ -25,7 +28,7 @@ export function Wordmark({ className, mark = true }: { className?: string; mark?
   return (
     <span className={cx("inline-flex items-center gap-2 font-semibold tracking-[-0.03em] text-ink", className)}>
       {mark && <LogoMark />}
-      <span className="text-[24px] leading-none">ingather<span className="text-rose">.</span></span>
+      <span className="text-[24px] leading-none">ingather<span className="ig-text">.</span></span>
     </span>
   );
 }

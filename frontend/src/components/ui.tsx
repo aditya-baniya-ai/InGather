@@ -1,22 +1,25 @@
+import type React from "react";
 import { useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { AlertCircle, Eye, EyeOff, Loader2, RotateCw, X } from "lucide-react";
 import { errorMessage } from "../lib/api";
 
 export const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
+// Disabled-but-idle buttons go flat grey; a busy (loading) button keeps its animated gradient.
+const GRAD = "ig-grad btn-grad text-white [&:disabled:not([aria-busy])]:bg-none [&:disabled:not([aria-busy])]:bg-sunk [&:disabled:not([aria-busy])]:text-muted [&:disabled:not([aria-busy])]:shadow-none";
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "agent";
 const variants: Record<Variant, string> = {
-  primary: "bg-ink text-white hover:bg-[#33374a] disabled:bg-sunk disabled:text-muted",
+  primary: GRAD,
   secondary: "bg-surface text-ink border border-control hover:border-ink/40 hover:bg-raised",
   ghost: "text-ink hover:bg-raised",
   danger: "bg-surface text-danger border border-danger/30 hover:bg-danger-soft",
-  agent: "bg-violet text-white hover:bg-violet-ink disabled:bg-sunk disabled:text-muted aria-busy:bg-violet aria-busy:text-white",
+  agent: GRAD,
 };
 
 type Size = "sm" | "md" | "lg";
 /** Button look, shared with links that act as buttons. */
 export const buttonCls = (variant: Variant = "primary", size: Size = "md", className?: string) => cx(
-  "press inline-flex items-center justify-center gap-2 rounded-full font-medium whitespace-nowrap select-none disabled:cursor-not-allowed",
+  "press inline-flex items-center justify-center gap-2 rounded-full font-medium max-w-full whitespace-normal text-center py-2 select-none disabled:cursor-not-allowed",
   size === "sm" && "min-h-9 px-3.5 text-[14px]",
   size === "md" && "min-h-11 px-5 text-[15px]",
   size === "lg" && "min-h-12 px-6 text-[16px]",
@@ -35,10 +38,10 @@ export function Button({ variant = "primary", size = "md", loading, icon, classN
 }
 
 export function Panel({ as: Tag = "section", className, children, ...rest }: { as?: "section" | "div" | "article" | "aside"; className?: string; children: ReactNode; "aria-labelledby"?: string }) {
-  return <Tag {...rest} className={cx("rounded-[20px] bg-surface border border-line", className)}>{children}</Tag>;
+  return <Tag {...rest} className={cx("card", className)}>{children}</Tag>;
 }
 
-export function Pill({ tone = "neutral", children, className }: { tone?: "neutral" | "rose" | "violet" | "emerald" | "amber" | "danger"; children: ReactNode; className?: string }) {
+export function Pill({ tone = "neutral", children, className }: { tone?: "neutral" | "rose" | "violet" | "emerald" | "amber" | "danger" | "cat"; children: ReactNode; className?: string }) {
   const tones = {
     neutral: "bg-raised text-muted",
     rose: "bg-rose-soft text-rose-ink",
@@ -46,6 +49,7 @@ export function Pill({ tone = "neutral", children, className }: { tone?: "neutra
     emerald: "bg-emerald-soft text-emerald-ink",
     amber: "bg-amber-soft text-amber-ink",
     danger: "bg-danger-soft text-danger",
+    cat: "cat-pill",
   };
   return <span className={cx("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12.5px] font-medium leading-5", tones[tone], className)}>{children}</span>;
 }
@@ -120,7 +124,7 @@ export function Chip({ selected, onClick, children, className }: { selected?: bo
   return (
     <button type="button" aria-pressed={selected} onClick={onClick}
       className={cx("press min-h-9 rounded-full border px-3.5 text-[14px]",
-        selected ? "border-ink bg-ink text-white" : "border-line bg-surface text-ink hover:border-control", className)}>
+        selected ? "heart-pop ig-grad border-transparent text-white" : "border-line bg-surface text-ink hover:border-ig-pink/40 hover:bg-rose-soft/50", className)}>
       {children}
     </button>
   );
@@ -150,8 +154,8 @@ export function Avatar({ name, src, size = 40, ring }: { name: string; src?: str
     ? <img src={src} alt="" className="size-full rounded-full object-cover" />
     : <span className="grid size-full place-items-center rounded-full font-semibold" style={{ background: `hsl(${hue} 60% 92%)`, color: `hsl(${hue} 45% 28%)`, fontSize: size * 0.4 }}>{name.trim().charAt(0).toUpperCase() || "?"}</span>;
   return (
-    <span className={cx("inline-block shrink-0 rounded-full", ring ? "story-ring p-[2px]" : "")} style={{ width: size, height: size }} aria-hidden>
-      <span className={cx("block size-full rounded-full", ring && "bg-surface p-[2px]")}>{inner}</span>
+    <span className={cx("inline-block shrink-0 rounded-full", ring ? "story-ring p-[2px]" : "bg-gradient-to-br from-ig-orange/40 to-ig-purple/40 p-px")} style={{ width: size, height: size }} aria-hidden>
+      <span className="block size-full rounded-full bg-surface p-[2px]">{inner}</span>
     </span>
   );
 }
@@ -170,7 +174,7 @@ export function LoadingBlock({ label = "Loading", rows = 3 }: { label?: string; 
 
 export function EmptyState({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="rounded-[20px] border border-dashed border-control px-5 py-8 text-center">
+    <div className="rounded-[24px] border border-dashed border-ig-pink/30 bg-gradient-to-br from-orange-soft/60 via-surface to-blue-soft/60 px-5 py-8 text-center">
       <p className="font-medium">{title}</p>
       {children && <div className="mx-auto mt-1 max-w-sm text-[14px] text-muted">{children}</div>}
       {action && <div className="mt-4 flex justify-center">{action}</div>}
@@ -244,6 +248,14 @@ export function AiMark({ children = "Filled by Intake agent" }: { children?: Rea
 /** Segmented control with tablist semantics; arrow keys move between tabs. */
 export function Tabs<T extends string>({ value, onChange, options, label, idBase }: { value: T; onChange: (v: T) => void; options: { value: T; label: ReactNode }[]; label: string; idBase: string }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [ind, setInd] = useState<{ x: number; w: number } | null>(null);
+  const idx = options.findIndex((o) => o.value === value);
+  useEffect(() => {
+    const measure = () => { const el = refs.current[idx]; if (el) setInd({ x: el.offsetLeft, w: el.offsetWidth }); };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [idx, options.length]);
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
     if (!step) return;
@@ -252,18 +264,32 @@ export function Tabs<T extends string>({ value, onChange, options, label, idBase
     refs.current[i]?.focus();
   };
   return (
-    <div role="tablist" aria-label={label} onKeyDown={onKey} className="inline-flex rounded-full bg-raised p-1">
+    <div role="tablist" aria-label={label} onKeyDown={onKey} className="relative inline-flex rounded-full bg-raised p-1">
+      {ind && <span aria-hidden className="tab-ind ig-grad absolute left-0 top-1 bottom-1 rounded-full shadow-[0_4px_14px_-6px_rgb(214_41_118/0.6)]" style={{ width: ind.w, transform: `translateX(${ind.x}px)` }} />}
       {options.map((o, i) => {
         const on = o.value === value;
         return (
           <button key={o.value} ref={(el) => { refs.current[i] = el; }} type="button" role="tab" id={`${idBase}-tab-${o.value}`} aria-selected={on}
             aria-controls={`${idBase}-panel`} tabIndex={on ? 0 : -1} onClick={() => onChange(o.value)}
-            className={cx("press inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-[14.5px] font-medium",
-              on ? "bg-surface text-ink shadow-[0_1px_2px_rgb(31_34_48/0.08),0_0_0_1px_var(--color-line)]" : "text-muted hover:text-ink")}>
+            className={cx("press relative z-10 inline-flex min-h-10 items-center gap-2 rounded-full px-4 text-[14.5px] font-medium transition-colors duration-200",
+              on ? "text-white" : "text-muted hover:text-ink")}>
             {o.label}
           </button>
         );
       })}
     </div>
+  );
+}
+
+const BURST_COLORS = ["#feda75", "#fa7e1e", "#d62976", "#962fbf", "#4f5bd5"];
+/** One-shot gradient confetti for rare celebration moments (a meetup confirmed). */
+export function Burst() {
+  return (
+    <span className="burst" aria-hidden>
+      {Array.from({ length: 22 }, (_, i) => {
+        const a = (i / 22) * Math.PI * 2, d = 70 + (i % 4) * 28;
+        return <i key={i} style={{ "--c": BURST_COLORS[i % 5], "--x0": `${20 + (i % 6) * 6}%`, "--dx": `${Math.cos(a) * d}px`, "--dy": `${Math.sin(a) * d - 20}px`, "--r": `${i * 47}deg`, "--d": `${(i % 5) * 30}ms` } as React.CSSProperties} />;
+      })}
+    </span>
   );
 }

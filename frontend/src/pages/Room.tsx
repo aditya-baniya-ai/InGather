@@ -74,7 +74,7 @@ export function Room() {
                           {agent && <Sparkles className="size-3" aria-hidden />}{mine ? "You" : m.sender_name} · {formatTime(m.created_at, p.timezone)}
                         </span>
                         <p className={cx("whitespace-pre-wrap break-words rounded-[20px] px-4 py-2.5 text-[15px] leading-snug",
-                          agent ? "bg-violet-soft" : mine ? "bg-ink text-white" : "bg-raised")}>{m.body}</p>
+                          agent ? "bg-violet-soft" : mine ? "ig-grad text-white" : "bg-raised")}>{m.body}</p>
                       </div>
                     );
                   })}
