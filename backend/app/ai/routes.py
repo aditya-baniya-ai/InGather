@@ -62,9 +62,9 @@ def cover_prompt(plan: Plan) -> str:
     scene = COVER_STYLE.get(plan.activity_type, "friends meeting at a public place")
     interests = ", ".join(i for i in (plan.interests or [])[:3] if i.replace(" ", "").isalnum())
     return (
-        f"Warm editorial illustration of {scene} in {plan.city[:60]}"
+        f"Editorial lifestyle photograph of {scene} in {plan.city[:60]}"
         + (f", subtle hints of {interests}" if interests else "")
-        + ". No people's faces, no text, no logos. Soft gradient colors, wide banner composition."
+        + ". Natural light, warm and inviting, shallow depth of field, no recognizable faces, no text, no logos, wide banner composition."
     )
 
 
@@ -113,19 +113,12 @@ def generate_cover(
     settings: Settings = Depends(get_settings),
 ):
     plan = owned_plan(db, settings, user, plan_id)  # 404 before revealing AI availability
-    client = muse(settings)
+    client = muse(settings)  # 503 ai_unavailable without a key
     try:
-        image = client.generate_image(cover_prompt(plan))
+        save_cover(db, settings, plan, client)
     except Exception as exc:
         log.warning("cover generation failed: %s", type(exc).__name__)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "image_generation_failed")
-    ext = {"png": "png", "jpeg": "jpg", "webp": "webp"}.get(image.fmt, "webp")
-    media = Path(settings.media_dir)
-    media.mkdir(parents=True, exist_ok=True)
-    name = f"{uuid.uuid4().hex}.{ext}"
-    (media / name).write_bytes(image.data)
-    plan.cover_image_url = f"/media/{name}"
-    db.commit()
     return plan_out(db, settings, plan)
 
 
@@ -146,3 +139,30 @@ def revoke_connector_tokens(user: User = Depends(current_user), db: Session = De
     )
     db.commit()
     return Response(status_code=204)
+
+
+def save_cover(db: Session, settings: Settings, plan: Plan, client: MuseClient) -> None:
+    """Generate a Muse Image cover from non-personal plan attributes and store it under /media."""
+    image = client.generate_image(cover_prompt(plan))
+    ext = {"png": "png", "jpeg": "jpg", "webp": "webp"}.get(image.fmt, "webp")
+    media = Path(settings.media_dir)
+    media.mkdir(parents=True, exist_ok=True)
+    name = f"{uuid.uuid4().hex}.{ext}"
+    (media / name).write_bytes(image.data)
+    plan.cover_image_url = f"/media/{name}"
+    db.commit()
+
+
+def cover_in_background(plan_id: uuid.UUID) -> None:
+    """Best-effort cover for a newly created plan; the UI shows the activity photo until it lands."""
+    from app.db import SessionLocal
+
+    settings = get_settings()
+    with SessionLocal() as db:
+        plan = db.get(Plan, plan_id)
+        if plan is None or plan.cover_image_url:
+            return
+        try:
+            save_cover(db, settings, plan, MuseClient(settings))
+        except Exception as exc:
+            log.warning("auto cover failed: %s", type(exc).__name__)

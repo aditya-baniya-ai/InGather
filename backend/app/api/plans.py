@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
@@ -23,8 +23,13 @@ def policy(db: Session = Depends(get_db), s: Settings = Depends(get_settings)) -
 
 
 @router.post("", response_model=PlanOut, status_code=201)
-def create_plan(body: PlanIn, user: User = Depends(current_user), svc: Plans = Depends(plans)):
-    return svc.out(svc.create(user, body))
+def create_plan(body: PlanIn, tasks: BackgroundTasks, user: User = Depends(current_user), svc: Plans = Depends(plans)):
+    plan = svc.create(user, body)
+    if svc.settings.ai_live:
+        from app.ai.routes import cover_in_background
+
+        tasks.add_task(cover_in_background, plan.id)
+    return svc.out(plan)
 
 
 @router.get("", response_model=list[PlanOut])
