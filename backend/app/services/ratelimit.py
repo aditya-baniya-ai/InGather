@@ -13,6 +13,7 @@ class RateLimiter:
         "approve_invites": (20, 60),
         "message": (30, 60),
         "login": (10, 60),
+        "plan_draft": (10, 60),
     }
 
     def __init__(self):

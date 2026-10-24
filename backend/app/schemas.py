@@ -359,3 +359,29 @@ class DemoVerifyIn(BaseModel):
 class StripeStartOut(BaseModel):
     url: str
 
+
+# --- AI plan intake (POST /api/plans/draft) ----------------------------------------------------
+class PlanDraftIn(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+    timezone_hint: str | None = Field(None, max_length=64)
+
+
+class PlanDraftOut(BaseModel):
+    """A suggested, unsaved PlanIn. Every present field already passed PlanIn's rules; the rest are in `missing`."""
+
+    activity_type: ActivityType | None = None
+    title: str | None = None
+    goal_text: str
+    city: str | None = None
+    timezone: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    intent: Intent | None = None
+    interests: list[Interest] = Field(default_factory=list)
+    group_min: int | None = None
+    group_max: int | None = None
+    group_only: bool | None = None
+    windows: list[WindowIn] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    notes: str = ""
+    mode: Literal["live"] = "live"

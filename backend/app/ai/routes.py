@@ -1,4 +1,4 @@
-"""AI extras: voice transcription, plan cover images, and connector tokens for the user's own Muse agent."""
+"""AI extras: plan intake drafts, voice transcription, plan cover images, and connector tokens for the user's own Muse agent."""
 
 import hashlib
 import logging
@@ -11,10 +11,13 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.ai.muse import MuseClient
+from app.ai.orchestra.intake import IntakeAgent
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import ConnectorToken, Plan, User, now
+from app.schemas import PlanDraftIn, PlanDraftOut
 from app.security import current_user
+from app.services.ratelimit import limiter
 
 log = logging.getLogger("ingather.ai")
 router = APIRouter(prefix="/api", tags=["ai"])
@@ -63,6 +66,22 @@ def cover_prompt(plan: Plan) -> str:
         + (f", subtle hints of {interests}" if interests else "")
         + ". No people's faces, no text, no logos. Soft gradient colors, wide banner composition."
     )
+
+
+@router.post("/plans/draft", response_model=PlanDraftOut)
+def draft_plan(
+    body: PlanDraftIn,
+    user: User = Depends(current_user),
+    settings: Settings = Depends(get_settings),
+    client: MuseClient = Depends(muse),
+):
+    """Intake agent: free text -> unsaved plan draft. The text is untrusted data; nothing is stored."""
+    limiter.hit("plan_draft", user.id)
+    try:
+        return IntakeAgent(settings, client).draft(body.text, body.timezone_hint)
+    except Exception as exc:
+        log.warning("plan draft failed: %s", type(exc).__name__)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "draft_failed")
 
 
 @router.post("/voice/transcribe")
