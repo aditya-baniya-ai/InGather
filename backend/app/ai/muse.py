@@ -29,7 +29,7 @@ class MuseClient:
                 base_url=settings.meta_model_base_url,
                 api_key=settings.model_api_key,
                 timeout=settings.meta_model_timeout_seconds,
-                max_retries=1,
+                max_retries=3,  # transient network drops are retried with backoff
             )
 
     @property

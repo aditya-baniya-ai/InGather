@@ -11,6 +11,8 @@ import re
 import time
 from typing import Any
 
+from openai import APIConnectionError, APITimeoutError
+
 from app.ai.tools import TOOL_SPECS, AgentToolbox, EventLog
 from app.config import Settings
 
@@ -24,6 +26,8 @@ class AgentError(RuntimeError):
 
 
 def safe_error(exc: Exception) -> str:
+    if isinstance(exc, (APIConnectionError, APITimeoutError)):
+        return "Couldn't reach Muse Spark (network problem). Please try again"
     status = getattr(exc, "status_code", None)
     return f"Muse Spark request failed ({type(exc).__name__}{f' {status}' if status else ''})"
 

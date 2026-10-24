@@ -5,17 +5,18 @@ import { AgentTimeline } from "../components/AgentTimeline";
 import { ProposalView } from "../components/ProposalView";
 import { ErrorState, LoadingBlock } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, type Proposal, type Run } from "../lib/api";
+import { api, ApiError, type Proposal, type Run } from "../lib/api";
 import { keys, useFollowRun, useInvitations, usePlan, useProposal } from "../lib/hooks";
 
 /** Owner's right panel: the agent's latest run for this plan, e.g. the decline-triggered replan. */
 function OwnerAgentPanel({ proposal, inline }: { proposal: Proposal; inline?: boolean }) {
   const plan = usePlan(proposal.plan_id, 4000);
-  const { run } = useFollowRun(proposal.plan_id, plan.data?.latest_run_id);
+  const { run, follow } = useFollowRun(proposal.plan_id, plan.data?.latest_run_id);
+  const retry = () => api.replan(proposal.id, null).then(follow, () => run.refetch());
   const activity = run.data && (
     <div className="rounded-[20px] border border-line bg-surface p-5">
       <h2 className="mb-3 text-[15px] font-semibold">Agent activity</h2>
-      <AgentTimeline run={run.data} tz={proposal.timezone} />
+      <AgentTimeline run={run.data} tz={proposal.timezone} onRetry={retry} />
     </div>
   );
   // Below xl the right rail is hidden: surface the agent inline while it is actually working.

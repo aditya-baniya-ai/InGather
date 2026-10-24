@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, Check, CircleDot, ClipboardCheck, Sparkles, Undo2, Wrench } from "lucide-react";
+import { AlertTriangle, ArrowRight, RotateCcw, Check, CircleDot, ClipboardCheck, Sparkles, Undo2, Wrench } from "lucide-react";
 import { detailCopy, type AgentName, type Run, type RunEvent } from "../lib/api";
 import { AGENTS, agentStates, reviewVerdict, type AgentState } from "../lib/agents";
 import { formatTime } from "../lib/time";
@@ -118,7 +118,7 @@ function EventRow({ e, tz, mode }: { e: RunEvent; tz: string; mode: Run["mode"] 
 }
 
 /** The agents' real work as the backend logged it: who did what, tool executions vs narration vs reviewer verdicts. */
-export function AgentTimeline({ run, tz }: { run: Run; tz: string }) {
+export function AgentTimeline({ run, tz, onRetry }: { run: Run; tz: string; onRetry?: () => void }) {
   const events = [...run.events].sort((a, b) => a.seq - b.seq);
   const tools = events.filter((e) => e.kind === "tool").length;
   const orchestra = events.some((e) => e.agent);
@@ -143,6 +143,11 @@ export function AgentTimeline({ run, tz }: { run: Run; tz: string }) {
           <p>The agent stopped: {(run.error ? detailCopy(run.error) : "unknown error").replace(/[^.!?]$/, "$&.")} Nothing was sent to anyone.</p>
           {run.error === "not_eligible" && (
             <Link to="/verify" className="inline-flex min-h-11 items-center gap-1.5 font-medium text-ink underline-offset-4 hover:underline">Verify your account <ArrowRight className="size-4" aria-hidden /></Link>
+          )}
+          {onRetry && run.error !== "not_eligible" && (
+            <button type="button" onClick={onRetry} className="press mt-1 inline-flex min-h-11 items-center gap-1.5 font-medium text-ink underline-offset-4 hover:underline">
+              <RotateCcw className="size-4" aria-hidden /> Try again
+            </button>
           )}
         </div>
       )}
