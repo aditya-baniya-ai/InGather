@@ -156,6 +156,9 @@ export function AgentWorkspace() {
             {p.discovery_mode === "paused" && <p className="mt-2 text-[13.5px] text-muted">Discovery is paused for this plan. Resume it to search.</p>}
             {me?.can_discover === false && <p className="mt-2 text-[13.5px] text-muted">Your account isn't eligible for discovery yet (verification needed, or discovery paused in Profile).</p>}
             <InlineError error={error} />
+            {(me?.verification === "unverified" || (error instanceof ApiError && error.detail === "not_eligible")) && (
+              <Link to="/verify" className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-medium underline-offset-4 hover:underline">Verify your account <ArrowRight className="size-4" aria-hidden /></Link>
+            )}
           </div>
         )}
 
