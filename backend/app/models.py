@@ -333,6 +333,7 @@ class VenueOption(Base):
     latitude: Mapped[float | None] = mapped_column(Float)  # map pin (verified near the group, or geocoded from the address)
     longitude: Mapped[float | None] = mapped_column(Float)
     image_url: Mapped[str | None] = mapped_column(String(500))  # photo found by the search (https only); UI falls back to a stock photo
+    place: Mapped[dict | None] = mapped_column(JSON)  # Google Places details (rating, hours, photos...) when a Maps key is set
 
 
 class VenueRating(Base):

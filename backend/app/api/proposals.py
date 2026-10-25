@@ -202,3 +202,20 @@ def calendar_invite(proposal_id: UUID, ctx: Ctx = Depends()):
     body = ics(proposal, ctx.db.get(Plan, proposal.plan_id), ctx.settings.public_base_url)
     return Response(body, media_type="text/calendar; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="ingather-{proposal.id}.ics"'})
+
+
+@router.get("/venue-photos/{option_id}/{index}", include_in_schema=False)
+def venue_photo(option_id: UUID, index: int, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)):
+    """A Google Maps photo of a suggested public place. No login (images can't send a token), but only photos of
+    options we stored can be fetched, by their unguessable option id; the API key stays on the server."""
+    from fastapi.responses import RedirectResponse
+
+    from app.models import VenueOption
+    from app.services.gplaces import photo_uri
+
+    option = db.get(VenueOption, option_id)
+    photos = ((option.place or {}).get("photos") or []) if option else []
+    uri = photo_uri(photos[index]["name"], settings.google_maps_api_key) if 0 <= index < len(photos) else None
+    if not uri:
+        raise not_found()
+    return RedirectResponse(uri, status_code=302, headers={"Cache-Control": "private, max-age=1800"})

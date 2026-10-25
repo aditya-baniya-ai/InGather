@@ -265,3 +265,96 @@ def test_agent_pins_photos_and_descriptions_are_validated(settings):
     assert (a["latitude"], a["longitude"], a["image_url"]) == (39.951, -75.163, "https://example-cafe.com/photo.jpg")
     assert a["description"] == "Espresso bar with big tables."
     assert b["latitude"] is None and b["image_url"] is None
+
+
+# --- Google Places ---------------------------------------------------------------------------------
+def gplace(pid, name, lat, lng, types=("cafe",), rating=4.6, count=800, **extra):
+    return {"id": pid, "displayName": {"text": name}, "formattedAddress": f"{pid} Main St, Philadelphia", "types": list(types),
+            "location": {"latitude": lat, "longitude": lng}, "rating": rating, "userRatingCount": count,
+            "priceLevel": "PRICE_LEVEL_MODERATE", "currentOpeningHours": {"openNow": True},
+            "regularOpeningHours": {"weekdayDescriptions": ["Monday: 7 AM – 6 PM"]}, "googleMapsUri": f"https://maps.google.com/?cid={pid}",
+            "photos": [{"name": f"places/{pid}/photos/p1", "authorAttributions": [{"displayName": "Sam"}]}], **extra}
+
+
+def test_google_results_are_summarized_and_private_or_closed_places_dropped():
+    from app.services.gplaces import category, summarize
+
+    s = summarize(gplace("a", "La Colombe", 39.95, -75.16))
+    assert s["category"] == "cafe" and s["price"] == "$$" and s["open_now"] is True and s["photos"][0]["author"] == "Sam"
+    assert summarize(gplace("h", "Hotel Bar", 39.95, -75.16, types=("bar", "lodging"))) is None
+    assert summarize(gplace("c", "Gone Cafe", 39.95, -75.16, businessStatus="CLOSED_PERMANENTLY")) is None
+    assert category(["thai_restaurant"]) == "restaurant" and category(["hiking_area"]) == "park" and category(["store"]) == "public_venue"
+
+
+@pytest.fixture
+def google(monkeypatch, settings):
+    """A Maps key and a fake Places API: four cafés near the group, one far away."""
+    from app.services import gplaces
+
+    monkeypatch.setattr(settings, "google_maps_api_key", "test-key")
+    places = [gplace("a", "Alpha Cafe", 39.951, -75.161), gplace("b", "Beta Books", 39.955, -75.17, types=("book_store", "cafe")),
+              gplace("c", "Gamma Library", 39.96, -75.15, types=("library",), rating=4.8),
+              gplace("d", "Delta Diner", 39.94, -75.17, types=("diner_restaurant",), rating=4.0, count=50),
+              gplace("far", "Far Cafe", 40.71, -74.0)]
+    calls = []
+
+    def search(query, key, near=None, radius_km=15, n=10):
+        calls.append((query, key, near))
+        return [s for s in map(gplaces.summarize, places) if s][:n]
+
+    monkeypatch.setattr(gplaces, "search", search)
+    monkeypatch.setattr(gplaces, "photo_uri", lambda name, key, width=800: f"https://lh3.googleusercontent.com/{name}")
+    return calls
+
+
+def test_with_a_maps_key_google_finds_places_with_pins_photos_and_details(group, google):
+    apis, pid = group
+    poll = apis["alice"].post(poll_url(pid)).json()
+    assert poll["source"] == "google" and len(poll["options"]) == 3
+    assert "Far Cafe" not in [o["name"] for o in poll["options"]]  # too far from the group
+    for o in poll["options"]:
+        assert o["verified"] and o["latitude"] and o["source_url"].startswith("https://maps.google.com/")
+        assert o["place"]["rating"] and o["place"]["hours"] and o["place"]["photos"][0]["url"] == f"/api/venue-photos/{o['id']}/0"
+    query, key, near = google[0]
+    assert key == "test-key" and near is not None and "Alice" not in query  # only the activity, city and rounded midpoint
+    # photos redirect to Google without exposing the key; unknown photos 404
+    o = poll["options"][0]
+    res = apis["alice"].client.get(o["place"]["photos"][0]["url"], follow_redirects=False)
+    assert res.status_code == 302 and res.headers["location"].startswith("https://lh3.googleusercontent.com/") and "key" not in res.headers["location"]
+    assert apis["alice"].client.get(f"/api/venue-photos/{o['id']}/9", follow_redirects=False).status_code == 404
+
+
+def test_muse_picks_from_google_candidates_and_unknown_ids_are_ignored(settings, google):
+    fake = FakeMuse([answer({"venues": [
+        {"id": "c", "why": "Quiet and central.", "description": "Big reading rooms."},
+        {"id": "made-up", "why": "x", "description": "y"},
+        {"id": "a", "why": "Great espresso near everyone.", "description": "Espresso bar."},
+    ]})])
+    result = VenueAgent(fake, settings).suggest(REQ)
+    assert [o["name"] for o in result.options][:2] == ["Gamma Library", "Alpha Cafe"] and len(result.options) == 3
+    assert result.options[0]["why"] == "Quiet and central." and result.options[0]["category"] == "library"
+    req = fake.responses.requests[0]
+    assert "tools" not in req and "Alpha Cafe" in str(req["input"])  # no slow web search: Google already found them
+
+
+def test_web_search_picks_get_google_details_or_a_checked_osm_pin(group, monkeypatch, settings):
+    from app.services import gplaces, venue_votes
+
+    apis, pid = group
+    near, lost = venue("Near Cafe"), venue("Lost Cafe", area="1 Elm St")
+    agent = VenueAgent(FakeMuse(grounded(near, lost)), settings)
+    monkeypatch.setattr(venue_votes.VenueVoting, "__init__", lambda self, db, s, a=None: (setattr(self, "db", db), setattr(self, "settings", s), setattr(self, "agent", agent))[0])
+    monkeypatch.setattr(settings, "google_maps_api_key", "test-key")
+    monkeypatch.setattr(gplaces, "search", lambda *a, **k: [])  # Google has no candidates: Muse web search runs
+    monkeypatch.setattr(gplaces, "lookup", lambda name, *a, **k: gplaces.summarize(gplace("n", name, 39.952, -75.162)) if name == "Near Cafe" else None)
+    tried = []
+
+    def geocode(q, enabled=True):
+        tried.append(q)
+        return (40.71, -74.0) if q == "Lost Cafe, 1 Elm St" else (39.97, -75.14) if q == "1 Elm St" else None  # first hit is in New York
+
+    monkeypatch.setattr(venue_votes, "geocode_place", geocode)
+    opts = {o["name"]: o for o in apis["alice"].post(poll_url(pid)).json()["options"]}
+    assert opts["Near Cafe"]["place"]["rating"] == 4.6 and opts["Near Cafe"]["latitude"] == 39.952
+    assert (opts["Lost Cafe"]["latitude"], opts["Lost Cafe"]["longitude"]) == (39.97, -75.14) and opts["Lost Cafe"]["place"] is None
+    assert tried[:2] == ["Lost Cafe, 1 Elm St", "1 Elm St"]

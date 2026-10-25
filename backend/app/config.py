@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:8000"
     database_url: str = "sqlite:///./ingather.db"
     venue_search_enabled: bool = True
+    google_maps_api_key: str = ""  # optional: Google Places (New) for venue pins, photos, ratings and hours
     media_dir: str = "./media"
     static_dir: str = "../frontend/dist"
 

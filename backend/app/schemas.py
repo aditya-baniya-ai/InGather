@@ -413,6 +413,26 @@ class ConversationOut(BaseModel):
     updated_at: UTC
 
 
+class PlacePhotoOut(BaseModel):
+    url: str  # our /api/venue-photos/... endpoint
+    author: str | None  # Google photo attribution
+
+
+class PlaceOut(BaseModel):
+    """Google Maps details for a venue option (only when the server has a Google Maps key)."""
+    type: str | None
+    rating: float | None
+    rating_count: int | None
+    price: str | None  # "$".."$$$$" or "Free"
+    open_now: bool | None
+    hours: list[str]
+    phone: str | None
+    website: str | None
+    maps_url: str | None
+    summary: str | None
+    photos: list[PlacePhotoOut]
+
+
 class VenueOptionOut(BaseModel):
     id: UUID
     rank: int
@@ -426,7 +446,8 @@ class VenueOptionOut(BaseModel):
     image_url: str | None
     reservation_url: str | None
     source_url: str | None
-    verified: bool  # True only when it came from grounded web search with a source URL
+    verified: bool  # True only when it came from Google Maps or grounded web search with a source URL
+    place: PlaceOut | None = None
     average: float | None  # mean 1-10 score so far
     ratings: int  # how many people rated it
     my_score: int | None
@@ -454,7 +475,7 @@ class VenuePollOut(BaseModel):
     status: Literal["not_started", "open", "decided"]
     round: int
     rerolls_left: int
-    source: str | None  # grounded|fallback
+    source: str | None  # google|grounded|fallback
     options: list[VenueOptionOut]
     voters: list[VoterOut]
     people: list[MapPersonOut]

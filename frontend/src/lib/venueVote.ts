@@ -69,3 +69,21 @@ export const googleMapsUrl = (o: VenueOption, city: string) =>
 
 /** Apple devices open Apple Maps; everyone else Google Maps. */
 export const prefersAppleMaps = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+/** Best photo of a place: Google Maps (via our server), then one the web search found; null means use a stock photo. */
+export const photoOf = (o: VenueOption): string | null => o.place?.photos[0]?.url ?? o.image_url ?? null;
+
+/** The weekday of the meetup, in the plan's time zone (e.g. "Sunday"). */
+export const weekdayOf = (iso: string, timeZone: string) => {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);  // invitees see only the date: read it as that calendar day
+  try { return new Date(iso).toLocaleDateString("en-US", { weekday: "long", timeZone: dateOnly ? "UTC" : timeZone }); }
+  catch { return new Date(iso).toLocaleDateString("en-US", { weekday: "long" }); }
+};
+
+/** Opening hours for one day from Google's "Monday: 7:00 AM – 6:00 PM" lines. */
+export function hoursOn(hours: string[], weekday: string): string | null {
+  const line = hours.find((h) => h.toLowerCase().startsWith(weekday.toLowerCase()));
+  return line ? line.slice(line.indexOf(":") + 1).trim() : null;
+}
+
+export const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MapPerson, VenueOption, VenuePoll } from "./api";
-import { appleMapsUrl, decidedWinner, etas, fmtMinutes, googleMapsUrl, km, stillVoting, tally, travelMinutes, votingProgress } from "./venueVote";
+import { appleMapsUrl, decidedWinner, etas, fmtMinutes, googleMapsUrl, hostOf, hoursOn, km, photoOf, stillVoting, tally, travelMinutes, votingProgress, weekdayOf } from "./venueVote";
 
 const opt = (id: string, rank: number, average: number | null, over: Partial<VenueOption> = {}): VenueOption => ({
   id, rank, name: `Place ${id}`, area: "E 6th St", category: "cafe", why: "", description: "", latitude: null, longitude: null,
@@ -45,5 +45,24 @@ describe("travel times and directions", () => {
     expect(appleMapsUrl(venue, "Austin")).toBe("https://maps.apple.com/?daddr=30.286%2C-97.739&q=Place%20v");
     expect(googleMapsUrl(venue, "Austin")).toBe("https://www.google.com/maps/dir/?api=1&destination=30.286%2C-97.739");
     expect(googleMapsUrl(opt("y", 1, null, { name: "Joe's" }), "Austin")).toContain(encodeURIComponent("Joe's, E 6th St"));
+  });
+});
+
+describe("place details", () => {
+  it("prefers the Google photo, then the searched one, else stock", () => {
+    const place = { type: "Café", rating: 4.6, rating_count: 812, price: "$$", open_now: true, hours: [], phone: null, website: null, maps_url: null, summary: null,
+      photos: [{ url: "/api/venue-photos/x/0", author: "Sam" }] };
+    expect(photoOf(opt("x", 1, null, { place, image_url: "https://a.com/p.jpg" }))).toBe("/api/venue-photos/x/0");
+    expect(photoOf(opt("x", 1, null, { image_url: "https://a.com/p.jpg" }))).toBe("https://a.com/p.jpg");
+    expect(photoOf(opt("x", 1, null))).toBeNull();
+  });
+  it("reads one day's hours and the meetup weekday", () => {
+    const hours = ["Monday: 7:00 AM – 6:00 PM", "Sunday: Closed"];
+    expect(hoursOn(hours, "Monday")).toBe("7:00 AM – 6:00 PM");
+    expect(hoursOn(hours, "sunday")).toBe("Closed");
+    expect(hoursOn(hours, "Friday")).toBeNull();
+    expect(weekdayOf("2026-10-25T15:00:00Z", "America/Chicago")).toBe("Sunday");
+    expect(weekdayOf("2026-10-27", "America/Chicago")).toBe("Tuesday");  // date only: not shifted to Monday evening
+    expect(hostOf("https://www.example.com/menu")).toBe("example.com");
   });
 });

@@ -11,6 +11,7 @@
 share their location with the group (rounded to ~100 m): it is shown on the group map and moves the search midpoint.
 """
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo
@@ -22,6 +23,7 @@ from app.ai.muse import MuseClient
 from app.ai.venues import VenueAgent, VenueRequest
 from app.config import Settings
 from app.models import MeetupLocation, MemberStatus, Plan, Proposal, ProposalStatus, User, VenueOption, VenuePoll, VenueRating, now
+from app.services import gplaces
 from app.services.clock import as_utc
 from app.services.geo import coarse, geocode_place, midpoint
 from app.services.policy import conflict
@@ -48,6 +50,19 @@ def pick_winner(options: list[VenueOption], ratings: list[VenueRating]) -> Venue
         return None
     avg = averages(options, ratings)
     return min(options, key=lambda o: (-avg.get(o.id, 0.0), o.rank))
+
+
+MAX_PIN_KM = 50  # a geocoded pin farther than this from the group is the wrong place
+
+
+def place_out(o: VenueOption) -> dict | None:
+    """Google details for the client. Photos go through our own endpoint (no API key in the browser)."""
+    p = o.place
+    if not p:
+        return None
+    keep = ("type", "rating", "rating_count", "price", "open_now", "hours", "phone", "website", "maps_url", "summary")
+    return {**{k: p.get(k) for k in keep}, "hours": p.get("hours") or [],
+            "photos": [{"url": f"/api/venue-photos/{o.id}/{i}", "author": ph.get("author")} for i, ph in enumerate(p.get("photos") or [])]}
 
 
 class VenueVoting:
@@ -168,17 +183,36 @@ class VenueVoting:
         return VenueRequest(city=plan.city, midpoint=mid, local_time=when, activity=proposal.activity_title, interests=interests)
 
     def _fill(self, poll: VenuePoll, proposal: Proposal, avoid: set[str] = frozenset()) -> None:
-        result = self.agent.suggest(self.request_for(proposal))
-        fresh = [o for o in result.options if o["name"].casefold() not in avoid or not o["verified"]]
+        req = self.request_for(proposal)
+        result = self.agent.suggest(req, avoid)
+        fresh = [o for o in result.options if o["name"].casefold() not in avoid or not o["verified"]][:3]
         poll.source = result.source
         city = self.db.get(Plan, proposal.plan_id).city
-        for rank, o in enumerate(fresh[:3], start=1):
-            if o["verified"] and o.get("latitude") is None and o.get("area"):  # pin it from the address if the search had no coordinates
-                pin = geocode_place(f"{o['name']}, {o['area']}, {city}", self.settings.venue_search_enabled)
+        todo = [i for i, o in enumerate(fresh) if o["verified"] and not o.get("place")]
+        key = self.settings.google_maps_api_key
+        if key and todo:  # web-search picks: exact pin, photos, rating and hours from Google, looked up in parallel
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                found = list(pool.map(lambda i: gplaces.lookup(fresh[i]["name"], fresh[i]["area"], city, key, req.midpoint), todo))
+            for i, hit in zip(todo, found):
+                if hit:
+                    fresh[i] = {**fresh[i], "latitude": hit["lat"], "longitude": hit["lng"], "area": fresh[i]["area"] or hit["address"], "place": hit}
+        for i, o in enumerate(fresh):
+            if o["verified"] and o.get("latitude") is None:  # no key, or Google didn't know it: pin it from OpenStreetMap
+                pin = self._geocode(o, city, req.midpoint)
                 if pin:
-                    o = {**o, "latitude": pin[0], "longitude": pin[1]}
+                    fresh[i] = {**o, "latitude": pin[0], "longitude": pin[1]}
+        for rank, o in enumerate(fresh, start=1):
             poll.options.append(VenueOption(round=poll.round, rank=rank, **o))
         self.db.flush()
+
+    def _geocode(self, o: dict, city: str, near: tuple[float, float] | None) -> tuple[float, float] | None:
+        """Try the full address, then the street address alone, then name + city; reject pins far from the group."""
+        queries = [f"{o['name']}, {o['area']}" if o.get("area") else None, o.get("area"), f"{o['name']}, {city}"]
+        for q in dict.fromkeys(q for q in queries if q):
+            pin = geocode_place(q, self.settings.venue_search_enabled)
+            if pin and (not near or gplaces.km(near, pin) <= MAX_PIN_KM):
+                return pin
+        return None
 
     def _maybe_decide(self, poll: VenuePoll, proposal: Proposal) -> None:
         people = {m.user_id for m in participants(proposal)}
@@ -221,6 +255,7 @@ class VenueVoting:
             **base, "status": poll.status, "round": poll.round, "rerolls_left": MAX_REROLLS - poll.rerolls_used, "source": poll.source,
             "options": [{"id": o.id, "rank": o.rank, "name": o.name, "area": o.area, "category": o.category, "why": o.why,
                          "description": o.description, "latitude": o.latitude, "longitude": o.longitude, "image_url": o.image_url,
+                         "place": place_out(o),
                          "reservation_url": o.reservation_url, "source_url": o.source_url, "verified": o.verified,
                          "average": round(avg[o.id], 1) if o.id in avg else None, "ratings": count[o.id], "my_score": mine.get(o.id)}
                         for o in options],

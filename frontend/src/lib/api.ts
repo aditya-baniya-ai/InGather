@@ -179,17 +179,23 @@ export interface NearbyPlaces { status: string; message: string; places: VenuePl
 export interface FinalizeIn { venue_place_id?: string; start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
 export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only" | "home_area">>;
 
+/** Google Maps details for a venue option (present when the server has a Google Maps key). */
+export interface PlaceInfo {
+  type: string | null; rating: number | null; rating_count: number | null; price: string | null; open_now: boolean | null;
+  hours: string[]; phone: string | null; website: string | null; maps_url: string | null; summary: string | null;
+  photos: { url: string; author: string | null }[];
+}
 export interface VenueOption {
   id: string; rank: number; name: string; area: string | null; category: string; why: string; description: string;
   latitude: number | null; longitude: number | null; image_url: string | null;
-  reservation_url: string | null; source_url: string | null; verified: boolean;
+  reservation_url: string | null; source_url: string | null; verified: boolean; place?: PlaceInfo | null;
   average: number | null; ratings: number; my_score: number | null;
 }
 export interface Voter { user_id: string; display_name: string; voted: boolean; rated: number }
 /** A group member who shared their location with this group (rounded to ~100 m). */
 export interface MapPerson { user_id: string; display_name: string; avatar_url: string | null; latitude: number; longitude: number; is_me: boolean }
 export interface VenuePoll {
-  status: "not_started" | "open" | "decided"; round: number; rerolls_left: number; source: "grounded" | "fallback" | null;
+  status: "not_started" | "open" | "decided"; round: number; rerolls_left: number; source: "google" | "grounded" | "fallback" | null;
   options: VenueOption[]; voters: Voter[]; people: MapPerson[]; i_shared_location: boolean;
   winner_option_id: string | null; proposal_version: number;
 }

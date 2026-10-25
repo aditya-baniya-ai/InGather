@@ -4,6 +4,7 @@ import { AppShell } from "../components/AppShell";
 import { RunStatus } from "../components/RunStatus";
 import { GatherChat } from "../components/GatherChat";
 import { ProposalView } from "../components/ProposalView";
+import { canVoteVenue } from "../components/VenueVote";
 import { ErrorState, LoadingBlock } from "../components/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Proposal, type Run } from "../lib/api";
@@ -49,7 +50,7 @@ export function ProposalPage() {
   }
   const invitation = invitations.data?.find((i) => i.proposal_id === proposalId);
   return (
-    <AppShell chatAside={q.data.status === "confirmed"} aside={q.data.status === "confirmed" ? <GatherChat key={q.data.id} proposal={q.data} /> : isOwner ? <OwnerAgentPanel proposal={q.data} /> : undefined}>
+    <AppShell wide={canVoteVenue(q.data)} chatAside={q.data.status === "confirmed"} aside={q.data.status === "confirmed" ? <GatherChat key={q.data.id} proposal={q.data} /> : isOwner ? <OwnerAgentPanel proposal={q.data} /> : undefined}>
       {isOwner && <OwnerAgentPanel proposal={q.data} inline />}
       {q.data.status === "confirmed" && <div className="mb-6 xl:hidden"><GatherChat key={q.data.id} proposal={q.data} /></div>}
       <ProposalView proposal={q.data} onRun={onRun} invitation={invitation} />

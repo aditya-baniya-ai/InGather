@@ -1,4 +1,7 @@
-"""Venue agent: Muse Spark + web_search grounding finds 3 real public venues near the group's midpoint.
+"""Venue agent: finds 3 real public venues near the group's midpoint.
+
+With a Google Maps key (fast, a few seconds): Google Places finds real nearby places with pins, photos, ratings and
+hours; Muse Spark (no web search) picks the 3 that fit best and says why. Without one: Muse Spark + web_search grounding.
 
 Privacy: the model only ever sees the city, the rounded (~1 km) group midpoint, the local meetup time, the activity
 title and the interests the group shares. Never individual locations, names or plan text.
@@ -17,6 +20,7 @@ from urllib.parse import urlparse
 
 from app.ai.intake import answer_text, nullable, obj, parse_json
 from app.schemas import VenueCategory
+from app.services import gplaces
 
 log = logging.getLogger(__name__)
 
@@ -110,7 +114,7 @@ class VenueRequest:
 @dataclass
 class VenueResult:
     options: list[dict]
-    source: str  # grounded|fallback
+    source: str  # google|grounded|fallback
 
 
 def _host(url: str | None) -> str | None:
@@ -187,6 +191,7 @@ def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, f
             "description": strip_coordinates(str(v.get("description") or ""))[:300],
             "latitude": lat, "longitude": lng,
             "image_url": _image(v.get("image_url")) if verified else None,
+            "place": None,
         })
         if len(out) == MAX_OPTIONS:
             break
@@ -195,7 +200,7 @@ def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, f
 
 def fallback_options() -> list[dict]:
     return [{"name": n, "area": None, "category": c, "why": w, "reservation_url": None, "source_url": None, "verified": False,
-             "description": "", "latitude": None, "longitude": None, "image_url": None} for n, c, w in FALLBACK]
+             "description": "", "latitude": None, "longitude": None, "image_url": None, "place": None} for n, c, w in FALLBACK]
 
 
 def _prompt(req: VenueRequest) -> str:
@@ -206,12 +211,130 @@ def _prompt(req: VenueRequest) -> str:
     })
 
 
+PICK_SCHEMA = obj({
+    "venues": {
+        "type": "array",
+        "items": obj({
+            "id": {"type": "string", "description": "The candidate's id, exactly as given"},
+            "why": {"type": "string", "description": "One sentence: fair travel, shared interests, quiet enough to talk, open then"},
+            "description": {"type": "string", "description": "One short sentence on what the place is (cuisine, vibe, specialty)"},
+        }),
+    }
+})
+
+PICK_INSTRUCTIONS = (
+    "You are the InGather venue agent. From the candidate places (real Google Maps listings), pick exactly 3 that best "
+    "suit the group's activity and shared interests, are OPEN at the given local time (check their hours), are a fair "
+    "trip for everyone (km_from_middle is the distance from the middle of the group), are quiet enough to talk, and "
+    "are well rated. Prefer variety over three of the same kind. Rank best first. For each give its id exactly as "
+    "given, one short sentence on why it fits, and one short sentence describing the place. Never mention latitude, "
+    "longitude or coordinates; say 'near the middle of your group' instead."
+)
+
+# Extra Google queries by kind of activity, so there are always enough sensible candidates.
+KIND_QUERIES = {
+    "hike": "park with walking trail", "trail": "park with walking trail", "run": "park with running trail", "walk": "park",
+    "study": "quiet cafe or library to study", "book": "bookstore cafe", "coffee": "coffee shop", "brunch": "brunch restaurant",
+    "dinner": "restaurant", "lunch": "restaurant", "food": "food hall", "museum": "museum", "art": "art museum",
+    "board game": "board game cafe", "game": "board game cafe", "photo": "scenic park", "picnic": "park",
+}
+
+
+def _extra_query(activity: str) -> str:
+    a = activity.lower()
+    return next((q for k, q in KIND_QUERIES.items() if k in a), "cafe")
+
+
+def _quality(c: dict, near: tuple[float, float] | None) -> float:
+    """Heuristic rank when Muse isn't available: well rated, much reviewed, close to the middle."""
+    import math
+
+    rating, count = c.get("rating") or 3.5, c.get("rating_count") or 0
+    dist = gplaces.km(near, (c["lat"], c["lng"])) if near else 3
+    return rating * math.log10(count + 10) / (1 + dist / 4) - (0.5 if c.get("open_now") is False else 0)
+
+
+def _heuristic_why(c: dict, near: tuple[float, float] | None) -> str:
+    bits = []
+    if c.get("rating"):
+        bits.append(f"rated {c['rating']:.1f} from {c.get('rating_count') or 0:,} Google reviews")
+    if near:
+        bits.append(f"about {gplaces.km(near, (c['lat'], c['lng'])):.1f} km from the middle of your group")
+    return (", ".join(bits) or "A public place near the middle of your group").capitalize() + "."
+
+
+def google_option(c: dict, why: str, description: str) -> dict:
+    return {
+        "name": c["name"], "area": c["address"], "category": c["category"], "why": strip_coordinates(why)[:400],
+        "reservation_url": None, "source_url": c.get("maps_url"), "verified": True,
+        "description": strip_coordinates(description or c.get("summary") or c.get("type") or "")[:300],
+        "latitude": c["lat"], "longitude": c["lng"], "image_url": None, "place": c,
+    }
+
+
 class VenueAgent:
     def __init__(self, client, settings):
         self.client, self.settings = client, settings  # client: MuseClient (or a fake with .responses.create)
 
-    def suggest(self, req: VenueRequest) -> VenueResult:
-        if self.client is None or not getattr(self.client, "ai_live", True):
+    @property
+    def _live(self) -> bool:
+        return self.client is not None and getattr(self.client, "ai_live", True)
+
+    def suggest(self, req: VenueRequest, avoid: set[str] = frozenset()) -> VenueResult:
+        key = getattr(self.settings, "google_maps_api_key", "")
+        if key:
+            found = self._from_google(req, key, avoid)
+            if found:
+                return found
+        return self._from_web_search(req)
+
+    def _from_google(self, req: VenueRequest, key: str, avoid: set[str]) -> VenueResult | None:
+        """Fast path (a few seconds): Google finds real places near the middle, Muse (no web search) picks 3 and says why."""
+        seen, cands = set(), []
+        for query in (f"{req.activity} in {req.city}", f"{_extra_query(req.activity)} in {req.city}"):
+            for c in gplaces.search(query, key, req.midpoint, radius_km=12, n=10):
+                if c["id"] in seen or c["name"].casefold() in avoid or (req.midpoint and gplaces.km(req.midpoint, (c["lat"], c["lng"])) > MAX_KM_FROM_MIDDLE):
+                    continue
+                seen.add(c["id"])
+                cands.append(c)
+        if len(cands) < MAX_OPTIONS:
+            return None
+        cands.sort(key=lambda c: _quality(c, req.midpoint), reverse=True)
+        cands = cands[:12]
+        picks = self._muse_pick(req, cands) if self._live else []
+        if len(picks) < MAX_OPTIONS:
+            chosen = {p[0]["id"] for p in picks}
+            picks += [(c, _heuristic_why(c, req.midpoint), "") for c in cands if c["id"] not in chosen][: MAX_OPTIONS - len(picks)]
+        return VenueResult([google_option(c, why, desc) for c, why, desc in picks[:MAX_OPTIONS]], "google")
+
+    def _muse_pick(self, req: VenueRequest, cands: list[dict]) -> list[tuple[dict, str, str]]:
+        by_id = {c["id"]: c for c in cands}
+        brief = [{
+            "id": c["id"], "name": c["name"], "type": c.get("type"), "rating": c.get("rating"), "reviews": c.get("rating_count"),
+            "price": c.get("price"), "hours": c.get("hours"), "summary": c.get("summary"),
+            "km_from_middle": round(gplaces.km(req.midpoint, (c["lat"], c["lng"])), 1) if req.midpoint else None,
+        } for c in cands]
+        try:
+            resp = self.client.responses.create(
+                model=self.settings.meta_model, instructions=PICK_INSTRUCTIONS,
+                input=[{"role": "user", "content": json.dumps({"request": json.loads(_prompt(req)), "candidates": brief})}],
+                text={"format": {"type": "json_schema", "name": "venue_picks", "schema": PICK_SCHEMA, "strict": True}},
+            )
+            text = answer_text(resp)
+            raw = parse_json(text).get("venues", []) if text else []
+        except Exception as exc:  # fall back to the heuristic ranking
+            log.warning("venue pick failed: %s", type(exc).__name__)
+            return []
+        out, used = [], set()
+        for v in raw if isinstance(raw, list) else []:
+            c = by_id.get(v.get("id")) if isinstance(v, dict) else None
+            if c and c["id"] not in used:
+                used.add(c["id"])
+                out.append((c, str(v.get("why") or ""), str(v.get("description") or "")))
+        return out[:MAX_OPTIONS]
+
+    def _from_web_search(self, req: VenueRequest) -> VenueResult:
+        if not self._live:
             return VenueResult(fallback_options(), "fallback")
         try:
             resp = self.client.responses.create(

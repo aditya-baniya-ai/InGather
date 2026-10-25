@@ -1,20 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { MapPerson, VenueOption } from "../lib/api";
+import { cx } from "./ui";
 
 const PIN = ["#d62976", "#962fbf", "#4f5bd5"]; // brand pinks/purples/blues for places 1, 2, 3
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-function venueIcon(n: number, active: boolean): L.DivIcon {
-  const size = active ? 40 : 32;
+function venueIcon(n: number): L.DivIcon {
   return L.divIcon({
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-    html: `<span style="display:grid;place-items:center;width:${size}px;height:${size}px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);
-      background:${PIN[(n - 1) % PIN.length]};border:3px solid #fff;box-shadow:0 6px 16px -6px rgb(0 0 0 / .5)">
-      <b style="transform:rotate(45deg);color:#fff;font:600 ${active ? 16 : 14}px var(--font-sans)">${n}</b></span>`,
+    className: "venue-pin",
+    iconSize: [34, 34],
+    iconAnchor: [17, 34],
+    html: `<span class="venue-pin-body" style="background:${PIN[(n - 1) % PIN.length]}"><b>${n}</b></span>`,
   });
 }
 
@@ -31,49 +29,85 @@ function personIcon(p: MapPerson): L.DivIcon {
   });
 }
 
-/** The group's meetup map: the shared locations of members who opted in, and the venue options (numbered pins).
- *  OpenStreetMap tiles; selecting a pin selects the option, and the selected option's pin grows. */
-export function GroupMap({ people, options, selected, onSelect }: {
-  people: MapPerson[]; options: VenueOption[]; selected: string | null; onSelect: (id: string) => void;
+/** The group's meetup map: members who shared their location, and the venue options as numbered pins.
+ *  OpenStreetMap tiles. Hovering a pin previews the place (like Google Maps), clicking selects it; the active pin grows.
+ *  The map re-fits to all pins whenever its size changes, until someone pans or zooms it. */
+export function GroupMap({ people, options, active, onSelect, onHover, className, children }: {
+  people: MapPerson[]; options: VenueOption[]; active: string | null;
+  onSelect: (id: string) => void; onHover: (id: string | null) => void; className?: string; children?: ReactNode;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<L.Map | null>(null);
   const layer = useRef<L.LayerGroup | null>(null);
-  const fitted = useRef("");
+  const pins = useRef(new Map<string, L.Marker>());
+  const bounds = useRef<L.LatLngBounds | null>(null);
+  const touched = useRef(false);  // the user panned or zoomed: stop re-fitting
+  const fitting = useRef(false);
+  const handlers = useRef({ onSelect, onHover });
+  handlers.current = { onSelect, onHover };
+
+  const fit = () => {
+    const m = map.current, b = bounds.current;
+    if (!m || !b || touched.current) return;
+    fitting.current = true;
+    m.fitBounds(b, { padding: [40, 40], maxZoom: 15, animate: false });
+    fitting.current = false;
+  };
 
   useEffect(() => {
     if (!el.current || map.current) return;
-    map.current = L.map(el.current, { scrollWheelZoom: false, attributionControl: true }).setView([30.27, -97.74], 12);
+    const m = L.map(el.current, { scrollWheelZoom: false, attributionControl: true }).setView([30.27, -97.74], 12);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map.current);
-    layer.current = L.layerGroup().addTo(map.current);
-    return () => { map.current?.remove(); map.current = null; };
+    }).addTo(m);
+    layer.current = L.layerGroup().addTo(m);
+    m.on("dragstart zoomstart", () => { if (!fitting.current) touched.current = true; });
+    map.current = m;
+    const resize = new ResizeObserver(() => { m.invalidateSize({ animate: false }); fit(); });
+    resize.observe(el.current);
+    return () => { resize.disconnect(); m.remove(); map.current = null; };
   }, []);
 
+  // Build markers only when the places or people change (not on hover), then fit them all in view.
   useEffect(() => {
-    const m = map.current, g = layer.current;
-    if (!m || !g) return;
+    const g = layer.current;
+    if (!g) return;
     g.clearLayers();
+    pins.current.clear();
     const points: L.LatLngExpression[] = [];
     options.forEach((o, i) => {
       if (o.latitude === null || o.longitude === null) return;
       const at: L.LatLngExpression = [o.latitude, o.longitude];
       points.push(at);
-      L.marker(at, { icon: venueIcon(i + 1, o.id === selected), zIndexOffset: o.id === selected ? 1000 : 0, title: o.name, keyboard: true })
-        .on("click", () => onSelect(o.id)).addTo(g);
+      const marker = L.marker(at, { icon: venueIcon(i + 1), title: o.name, keyboard: true, riseOnHover: true })
+        .on("click", () => handlers.current.onSelect(o.id))
+        .on("mouseover", () => handlers.current.onHover(o.id))
+        .on("mouseout", () => handlers.current.onHover(null))
+        .addTo(g);
+      pins.current.set(o.id, marker);
     });
     people.forEach((p) => {
       const at: L.LatLngExpression = [p.latitude, p.longitude];
       points.push(at);
       L.marker(at, { icon: personIcon(p), title: p.is_me ? `${p.display_name} (you)` : p.display_name, keyboard: false }).addTo(g);
     });
-    const key = points.map(String).join("|");
-    if (points.length && key !== fitted.current) {  // re-fit only when the set of pins changes, not on every selection
-      fitted.current = key;
-      m.fitBounds(L.latLngBounds(points), { padding: [36, 36], maxZoom: 15 });
-    }
-  }, [people, options, selected, onSelect]);
+    bounds.current = points.length ? L.latLngBounds(points) : null;
+    touched.current = false;
+    fit();
+  }, [people, options]);
 
-  return <div ref={el} className="group-map h-72 w-full overflow-hidden rounded-2xl border border-line sm:h-80" role="region" aria-label="Map of the group and the suggested places" />;
+  // Highlight the active pin in place (no re-render of markers, so hovering never flickers).
+  useEffect(() => {
+    pins.current.forEach((marker, id) => {
+      marker.getElement()?.classList.toggle("is-active", id === active);
+      marker.setZIndexOffset(id === active ? 1000 : 0);
+    });
+  }, [active, options]);
+
+  return (
+    <div className={cx("relative overflow-hidden rounded-2xl border border-line", className)}>
+      <div ref={el} className="group-map size-full" role="region" aria-label="Map of the group and the suggested places" />
+      {children}
+    </div>
+  );
 }

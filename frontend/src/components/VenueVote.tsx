@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, Car, ExternalLink, Footprints, LocateFixed, MapPin, Navigation, RefreshCw, Sparkles, Star, Vote } from "lucide-react";
+import { BadgeCheck, Car, Clock, ExternalLink, Footprints, Globe, LocateFixed, MapPin, Navigation, Phone, RefreshCw, Sparkles, Star, Vote, X } from "lucide-react";
 import { api, type Proposal, type VenueOption, type VenuePoll } from "../lib/api";
 import { keys } from "../lib/hooks";
 import { VENUE_CATEGORIES } from "../lib/vocab";
 import {
-  appleMapsUrl, decidedWinner, etas, fmtMinutes, googleMapsUrl, prefersAppleMaps, stillVoting, tally, venueCatClass,
-  venuePhotoActivity, votingProgress, type TallyRow,
+  appleMapsUrl, decidedWinner, etas, fmtMinutes, googleMapsUrl, hostOf, hoursOn, photoOf, prefersAppleMaps, stillVoting, tally,
+  venueCatClass, venuePhotoActivity, votingProgress, weekdayOf, type TallyRow,
 } from "../lib/venueVote";
 import { coverSrc } from "./Brand";
 import { GroupMap } from "./GroupMap";
@@ -20,16 +20,102 @@ export const canVoteVenue = (p: Proposal) =>
 
 const catLabel = (c: string) => VENUE_CATEGORIES.find((v) => v.value === c)?.label ?? c.replace("_", " ");
 
-/** The venue's own photo when the search found one, else a stock photo of that kind of place. */
-function VenuePhoto({ o, city }: { o: VenueOption; city: string }) {
+/** The place's photo (Google Maps, else one the web search found), else a stock photo of that kind of place. */
+function VenuePhoto({ o, city, src: given, className }: { o: VenueOption; city: string; src?: string | null; className?: string }) {
   const fallback = coverSrc(venuePhotoActivity(o.category), city);
-  const [src, setSrc] = useState(o.image_url || fallback);
+  const [src, setSrc] = useState(given ?? photoOf(o) ?? fallback);
+  useEffect(() => setSrc(given ?? photoOf(o) ?? fallback), [given, o, fallback]);
   return (
-    <span className="relative block aspect-[16/10] overflow-hidden bg-sunk sm:aspect-auto sm:h-full sm:min-h-44">
-      <img src={src} alt={o.image_url && src === o.image_url ? `Photo of ${o.name}` : ""} loading="lazy" referrerPolicy="no-referrer"
-        onError={() => setSrc(fallback)} className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
+    <span className={cx("relative block overflow-hidden bg-sunk", className)}>
+      <img src={src} alt={src === fallback ? "" : `Photo of ${o.name}`} loading="lazy" referrerPolicy="no-referrer"
+        onError={() => setSrc(fallback)} className="size-full object-cover" />
       {src === fallback && <span className="absolute right-2 bottom-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white">Stock photo</span>}
     </span>
+  );
+}
+
+/** Google-style rating: "4.6 ★★★★★ (812)". */
+function Stars({ value, count }: { value: number; count: number | null }) {
+  return (
+    <span className="inline-flex items-center gap-1" aria-label={`Rated ${value.toFixed(1)} out of 5${count ? ` from ${count.toLocaleString()} reviews` : ""}`}>
+      <span className="num font-medium text-ink">{value.toFixed(1)}</span>
+      <span className="relative inline-block leading-none tracking-[1px] text-line" aria-hidden>★★★★★
+        <span className="absolute inset-0 overflow-hidden text-[#f4b400]" style={{ width: `${(value / 5) * 100}%` }}>★★★★★</span>
+      </span>
+      {count !== null && <span className="text-muted">({count.toLocaleString()})</span>}
+    </span>
+  );
+}
+
+/** One line of Google facts: rating, kind of place, price, open now. */
+function PlaceFacts({ o }: { o: VenueOption }) {
+  const pl = o.place;
+  if (!pl) return <span className="text-[13px] text-muted">{catLabel(o.category)}</span>;
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[13px] text-muted">
+      {pl.rating !== null && <Stars value={pl.rating} count={pl.rating_count} />}
+      {pl.rating !== null && <span aria-hidden>·</span>}
+      <span>{pl.type ?? catLabel(o.category)}</span>
+      {pl.price && <><span aria-hidden>·</span><span>{pl.price}</span></>}
+      {pl.open_now !== null && <><span aria-hidden>·</span><span className={cx("font-medium", pl.open_now ? "text-emerald-ink" : "text-danger")}>{pl.open_now ? "Open now" : "Closed now"}</span></>}
+    </span>
+  );
+}
+
+/** The Google-Maps-style place card: photos, rating, hours on the meetup day, address, phone, website, everyone's
+ *  travel time and directions. Shown on the map when a place is hovered or selected, and inline on narrow screens. */
+function PlaceDetails({ o, n, poll, city, day, meetupDay = true, onClose, className }: {
+  o: VenueOption; n: number; poll: VenuePoll; city: string; day: string; meetupDay?: boolean; onClose?: () => void; className?: string;
+}) {
+  const pl = o.place;
+  const photos = pl?.photos.length ? pl.photos : [{ url: photoOf(o) ?? "", author: null }];
+  const [shown, setShown] = useState(0);
+  useEffect(() => setShown(0), [o.id]);
+  const dayHours = pl ? hoursOn(pl.hours, day) : null;
+  const author = pl?.photos[shown]?.author;
+  return (
+    <section className={cx("overflow-hidden rounded-2xl bg-surface text-left", className)} aria-label={`${o.name} details`}>
+      <div className="relative">
+        <VenuePhoto o={o} city={city} src={photos[shown]?.url || null} className="aspect-[16/9] max-h-64 w-full" />
+        <span className="absolute top-2 left-2 grid size-7 place-items-center rounded-full ig-grad text-[13px] font-bold text-white shadow">{n}</span>
+        {onClose && <button type="button" onClick={onClose} aria-label="Close place details" className="press absolute top-2 right-2 grid size-8 place-items-center rounded-full bg-black/55 text-white"><X className="size-4" aria-hidden /></button>}
+        {photos.length > 1 && (
+          <div className="absolute inset-x-2 bottom-2 flex gap-1.5">
+            {photos.map((ph, i) => (
+              <button key={ph.url} type="button" onClick={(e) => { e.stopPropagation(); setShown(i); }} onMouseEnter={() => setShown(i)} aria-label={`Photo ${i + 1} of ${photos.length}`}
+                className={cx("size-10 overflow-hidden rounded-lg ring-2 transition", i === shown ? "ring-white" : "ring-white/30 opacity-80 hover:opacity-100")}>
+                <img src={ph.url} alt="" loading="lazy" referrerPolicy="no-referrer" className="size-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col gap-2 p-4">
+        <h3 className="text-[17px] leading-snug font-semibold">{o.name}</h3>
+        <PlaceFacts o={o} />
+        {(pl?.summary || o.description) && <p className="text-[13.5px] leading-relaxed">{pl?.summary || o.description}</p>}
+        <ul className="flex flex-col gap-1.5 border-t border-line pt-2.5 text-[13px]">
+          {o.area && <li className="flex items-start gap-2"><MapPin className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />{o.area}</li>}
+          {pl && pl.hours.length > 0 && (
+            <li className="flex items-start gap-2"><Clock className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden />
+              <details className="min-w-0 flex-1">
+                <summary className="cursor-pointer list-none">{day}: <span className="font-medium">{dayHours ?? "hours not listed"}</span> <span className="text-muted">({meetupDay ? "meetup day" : "today"})</span></summary>
+                <ul className="mt-1 text-muted">{pl.hours.map((h) => <li key={h}>{h}</li>)}</ul>
+              </details>
+            </li>
+          )}
+          {pl?.phone && <li className="flex items-center gap-2"><Phone className="size-4 shrink-0 text-muted" aria-hidden /><a href={`tel:${pl.phone}`} className="underline-offset-2 hover:underline">{pl.phone}</a></li>}
+          {pl?.website && <li className="flex items-center gap-2"><Globe className="size-4 shrink-0 text-muted" aria-hidden /><a href={pl.website} target="_blank" rel="noopener noreferrer" className="truncate underline-offset-2 hover:underline">{hostOf(pl.website)}</a></li>}
+        </ul>
+        <div className="rounded-xl bg-raised p-3"><Travel o={o} poll={poll} /></div>
+        <div className="flex flex-wrap gap-2 text-[13px] font-medium">
+          <a href={appleMapsUrl(o, city)} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-10 items-center gap-1.5 rounded-full ig-grad px-3.5 text-white"><Navigation className="size-4" aria-hidden /> Apple Maps</a>
+          <a href={googleMapsUrl(o, city)} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 ring-1 ring-line hover:bg-sunk"><Navigation className="size-4" aria-hidden /> Google Maps</a>
+          {pl?.maps_url && <a href={pl.maps_url} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-10 items-center gap-1.5 rounded-full bg-surface px-3.5 ring-1 ring-line hover:bg-sunk"><ExternalLink className="size-4" aria-hidden /> Reviews</a>}
+        </div>
+        {pl && <p className="text-[11px] text-muted">Details and photos from Google Maps{author ? ` · Photo: ${author}` : ""}</p>}
+      </div>
+    </section>
   );
 }
 
@@ -70,51 +156,41 @@ function Travel({ o, poll }: { o: VenueOption; poll: VenuePoll }) {
   );
 }
 
-function VenueCard({ o, n, poll, city, active, winner, busy, onSelect, onRate }: {
-  o: TallyRow; n: number; poll: VenuePoll; city: string; active: boolean; winner: VenueOption | null; busy: boolean;
-  onSelect: () => void; onRate: (score: number) => void;
+/** A result in the list, like Google Maps search results: hover previews it on the map, click keeps it open. */
+function VenueCard({ o, n, poll, city, day, active, open, winner, busy, onHover, onSelect, onRate }: {
+  o: TallyRow; n: number; poll: VenuePoll; city: string; day: string; active: boolean; open: boolean; winner: VenueOption | null; busy: boolean;
+  onHover: (id: string | null) => void; onSelect: () => void; onRate: (score: number) => void;
 }) {
   const won = winner?.id === o.id;
-  const apple = prefersAppleMaps();
-  const primary = apple ? appleMapsUrl(o, city) : googleMapsUrl(o, city);
   return (
     <li className={venueCatClass(o.category)}>
-      {/* Travel times sit in their own row below the rating; on wider screens its space is reserved, so hovering never moves anything. */}
-      <article onMouseEnter={onSelect} onFocus={onSelect} onClick={onSelect}
-        className={cx("group lift card grid overflow-hidden border-2 text-left transition-colors sm:grid-cols-[180px_1fr]",
+      <article onMouseEnter={() => onHover(o.id)} onMouseLeave={() => onHover(null)} onFocus={() => onHover(o.id)} onClick={onSelect}
+        className={cx("lift card cursor-pointer overflow-hidden border-2 text-left transition-colors",
           active || won ? "border-[var(--cat)]" : "border-transparent", winner && !won && "opacity-60")}>
-        <a href={primary} target="_blank" rel="noopener noreferrer" aria-label={`Directions to ${o.name} in ${apple ? "Apple" : "Google"} Maps`} className="relative block">
-          <VenuePhoto o={o} city={city} />
-          <span className="absolute top-2 left-2 grid size-7 place-items-center rounded-full ig-grad text-[13px] font-bold text-white shadow">{n}</span>
-          <span className="cat-pill absolute top-2 right-2 rounded-full px-2.5 py-0.5 text-[12px] font-semibold shadow-sm">{catLabel(o.category)}</span>
-        </a>
-        <div className="flex min-w-0 flex-col gap-1.5 p-4">
-          <a href={primary} target="_blank" rel="noopener noreferrer" className="text-[16px] leading-snug font-semibold underline-offset-4 hover:underline">{o.name}</a>
-          {o.area && <span className="flex items-start gap-1 text-[13px] text-muted"><MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />{o.area}</span>}
-          {o.description && <p className="text-[13.5px] leading-relaxed">{o.description}</p>}
-          {o.why && <p className="text-[13px] leading-relaxed text-muted">{o.why}</p>}
-          <div className="mt-auto pt-2">
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 text-[12.5px]">
-              <span className="font-medium">{o.my_score ? `Your rating: ${o.my_score}/10` : "Rate it 1–10"}</span>
-              <span className="inline-flex items-center gap-1 text-muted">
-                <Star className="size-3.5" aria-hidden /> {o.average !== null ? <><span className="num font-semibold text-ink">{o.average.toFixed(1)}</span> avg · {o.ratings}/{poll.voters.length}</> : "no ratings yet"}
-                {o.leading && !winner && <span className="font-semibold" style={{ color: "var(--cat-ink)" }}> · leading</span>}
-              </span>
-            </div>
-            <Rating o={o} disabled={!!winner || busy} onRate={onRate} />
+        <div className="flex gap-3 p-3">
+          <div className="relative w-28 shrink-0 sm:w-32">
+            <VenuePhoto o={o} city={city} className="aspect-square rounded-xl" />
+            <span className="absolute top-1.5 left-1.5 grid size-6 place-items-center rounded-full ig-grad text-[12px] font-bold text-white shadow">{n}</span>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 className="text-[15.5px] leading-snug font-semibold">{o.name}</h3>
+            <PlaceFacts o={o} />
+            {o.area && <span className="truncate text-[12.5px] text-muted">{o.area}</span>}
+            {o.why && <p className="line-clamp-2 text-[13px] leading-relaxed">{o.why}</p>}
           </div>
         </div>
-        {/* Travel times + directions: on hover or focus, and always for the selected card (tap on phones). */}
-        <div className={cx("relative border-t border-line p-4 sm:col-span-2", active ? "block" : "hidden sm:block")}>
-          {!active && <p className="absolute inset-0 hidden place-items-center text-[12.5px] text-muted sm:grid sm:group-hover:invisible sm:group-focus-within:invisible">Hover to see everyone's travel time and directions.</p>}
-          <div className={cx("flex flex-wrap items-start justify-between gap-3", !active && "sm:invisible sm:group-hover:visible sm:group-focus-within:visible")}>
-            <div className="min-w-0 flex-1 basis-64"><Travel o={o} poll={poll} /></div>
-            <div className="flex flex-wrap gap-2 text-[12.5px] font-medium sm:flex-col">
-              <a href={appleMapsUrl(o, city)} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3 ring-1 ring-line hover:bg-sunk"><Navigation className="size-3.5" aria-hidden /> Apple Maps</a>
-              <a href={googleMapsUrl(o, city)} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-9 items-center gap-1.5 rounded-full bg-surface px-3 ring-1 ring-line hover:bg-sunk"><Navigation className="size-3.5" aria-hidden /> Google Maps</a>
-            </div>
+        <div className="px-3 pb-3">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-3 text-[12.5px]">
+            <span className="font-medium">{o.my_score ? `Your rating: ${o.my_score}/10` : "Rate it 1–10"}</span>
+            <span className="inline-flex items-center gap-1 text-muted">
+              <Star className="size-3.5" aria-hidden /> {o.average !== null ? <><span className="num font-semibold text-ink">{o.average.toFixed(1)}</span> avg · {o.ratings}/{poll.voters.length}</> : "no ratings yet"}
+              {o.leading && !winner && <span className="font-semibold" style={{ color: "var(--cat-ink)" }}> · leading</span>}
+            </span>
           </div>
+          <Rating o={o} disabled={!!winner || busy} onRate={onRate} />
         </div>
+        {/* Narrow screens: the selected place opens right here (on wide screens it opens on the map). */}
+        {open && <div className="border-t border-line @4xl:hidden" onClick={(e) => e.stopPropagation()}><PlaceDetails o={o} n={n} poll={poll} city={city} day={day} /></div>}
       </article>
     </li>
   );
@@ -153,6 +229,14 @@ function ShareLocation({ p, poll, onPoll }: { p: Proposal; poll: VenuePoll; onPo
   );
 }
 
+/** Live progress while the venue agent works (Google Maps takes seconds; a live web search can take a minute). */
+function Searching() {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => { const t = window.setInterval(() => setSecs((x) => x + 1), 1000); return () => window.clearInterval(t); }, []);
+  const step = secs < 4 ? "Finding real places near the middle of everyone…" : secs < 12 ? "Checking opening hours, ratings and distance for each person…" : "Muse is comparing the options and writing why each one fits…";
+  return <p role="status" className="mt-2 text-[13px] text-muted">{step} <span className="num">{secs}s</span></p>;
+}
+
 /** The group rates 3 public places from the Muse venue agent, 1-10 each, on a shared map. Polls every 3 s. */
 export function VenueVote({ p }: { p: Proposal }) {
   const qc = useQueryClient();
@@ -178,13 +262,25 @@ export function VenueVote({ p }: { p: Proposal }) {
     setBusy(label); setError(null);
     try { setPoll(await fn()); } catch (e) { setError(e); } finally { setBusy(null); }
   };
-  const select = useCallback((id: string) => setSelected(id), []);
+  // Hover previews a place (with a short grace period so you can move onto its card on the map); click keeps it open.
+  const [hovered, setHovered] = useState<string | null>(null);
+  const leave = useRef<number | undefined>(undefined);
+  const hover = useCallback((id: string | null) => {
+    window.clearTimeout(leave.current);
+    if (id) setHovered(id);
+    else leave.current = window.setTimeout(() => setHovered(null), 180);
+  }, []);
+  useEffect(() => () => window.clearTimeout(leave.current), []);
+  const toggle = useCallback((id: string) => setSelected((cur) => (cur === id ? null : id)), []);
 
   if (!data) return null;
   const winner = decidedWinner(data);
   const waiting = stillVoting(data);
   const rows = tally(data);
   const showMap = rows.some((o) => o.latitude !== null) || data.people.length > 0;
+  const shown = hovered ?? selected;
+  const shownRow = rows.find((o) => o.id === shown) ?? null;
+  const day = weekdayOf(p.start_at ?? new Date().toISOString(), p.timezone);  // invitees may not see the exact time yet: show today
 
   return (
     <Panel className="relative overflow-hidden p-5 sm:p-6" aria-labelledby="venue-vote-title">
@@ -198,11 +294,11 @@ export function VenueVote({ p }: { p: Proposal }) {
 
       {data.status === "not_started" && (
         <div className="mt-4">
-          <p className="text-[15px]">Muse Spark searches the web for 3 real public places near the middle of everyone (using the locations shared above, or rough home areas), open at your meetup time. Then everyone rates each place from 1 to 10.</p>
+          <p className="text-[15px]">Muse finds 3 real public places near the middle of everyone (using the locations shared above, or rough home areas), open at your meetup time, with photos, ratings and hours from the map. Then everyone rates each place from 1 to 10.</p>
           <Button className="mt-4" loading={busy === "start"} onClick={() => act("start", () => api.startVenuePoll(p.id))} icon={<Sparkles className="size-4" aria-hidden />}>
             {busy === "start" ? "Searching nearby…" : "Find places near everyone"}
           </Button>
-          {busy === "start" && <p role="status" className="mt-2 text-[13px] text-muted">Live web search can take up to a minute.</p>}
+          {busy === "start" && <Searching />}
         </div>
       )}
 
@@ -217,20 +313,34 @@ export function VenueVote({ p }: { p: Proposal }) {
         </div>
       )}
 
-      {showMap && (
-        <div className="mt-4">
-          <GroupMap people={data.people} options={rows} selected={selected} onSelect={select} />
-          <p className="mt-1.5 text-[12px] text-muted">Numbered pins are the places; round photos are group members who shared their location. Tap a pin or hover a card to see travel times.</p>
-        </div>
-      )}
-
       {rows.length > 0 && (
-        <ul className="mt-4 grid gap-4" aria-label="Places to rate">
-          {rows.map((o, i) => (
-            <VenueCard key={o.id} o={o} n={i + 1} poll={data} city={p.city} active={selected === o.id} winner={winner} busy={!!busy}
-              onSelect={() => select(o.id)} onRate={(score) => act(o.id, () => api.rateVenue(p.id, o.id, score))} />
-          ))}
-        </ul>
+        <div className="@container mt-4">
+          <div className="flex flex-col gap-4 @4xl:grid @4xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] @4xl:items-start @4xl:gap-5">
+            <ul className="order-2 flex flex-col gap-3 @4xl:order-1" aria-label="Places to rate">
+              {rows.map((o, i) => (
+                <VenueCard key={o.id} o={o} n={i + 1} poll={data} city={p.city} day={day} active={shown === o.id} open={selected === o.id}
+                  winner={winner} busy={!!busy} onHover={hover} onSelect={() => toggle(o.id)}
+                  onRate={(score) => act(o.id, () => api.rateVenue(p.id, o.id, score))} />
+              ))}
+            </ul>
+            {showMap && (
+              <div className="order-1 @4xl:sticky @4xl:top-4 @4xl:order-2">
+                <GroupMap people={data.people} options={rows} active={shown} onSelect={toggle} onHover={hover}
+                  className="h-72 sm:h-80 @4xl:h-[min(680px,calc(100dvh-7rem))]">
+                  {shownRow && (
+                    <div className="absolute top-3 bottom-3 left-3 z-[1000] hidden w-[min(330px,calc(100%-24px))] @4xl:block"
+                      onMouseEnter={() => hover(shownRow.id)} onMouseLeave={() => hover(null)}>
+                      <PlaceDetails o={shownRow} n={rows.indexOf(shownRow) + 1} poll={data} city={p.city} day={day} meetupDay={!!p.start_at}
+                        onClose={selected ? () => setSelected(null) : undefined}
+                        className="max-h-full overflow-y-auto shadow-[0_18px_50px_-18px_rgb(20_10_40/0.55)] ring-1 ring-line" />
+                    </div>
+                  )}
+                </GroupMap>
+                <p className="mt-1.5 text-[12px] text-muted">Hover a place or a numbered pin to see its photos, hours and everyone's travel time; click to keep it open. Round photos are members who shared their location.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {rows.length > 0 && (
@@ -238,7 +348,7 @@ export function VenueVote({ p }: { p: Proposal }) {
           {rows.map((o) => (
             <li key={o.id} className="min-w-0">
               {o.verified && o.source_url
-                ? <a href={o.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 text-emerald-ink underline-offset-2 hover:underline"><BadgeCheck className="size-3.5 shrink-0" aria-hidden /><span className="truncate">Verified via search · {o.name}</span><ExternalLink className="size-3 shrink-0" aria-hidden /></a>
+                ? <a href={o.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 text-emerald-ink underline-offset-2 hover:underline"><BadgeCheck className="size-3.5 shrink-0" aria-hidden /><span className="truncate">{o.place ? "Google Maps" : "Verified via search"} · {o.name}</span><ExternalLink className="size-3 shrink-0" aria-hidden /></a>
                 : <span className="text-muted">Suggestion, not verified · {o.name}</span>}
             </li>
           ))}
@@ -253,6 +363,7 @@ export function VenueVote({ p }: { p: Proposal }) {
               Find more places ({data.rerolls_left} left)
             </Button>
           )}
+          {busy === "reroll" && <div className="w-full"><Searching /></div>}
         </div>
       )}
       <InlineError error={error} />
