@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Lock, Users, X } from "lucide-react";
 import { api, type Invitation, type Proposal, type Run } from "../lib/api";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { keys, useSetProposal } from "../lib/hooks";
 import { formatDay } from "../lib/time";
 import { MEMBER_STATUS, PROPOSAL_STATUS } from "../lib/vocab";
@@ -119,6 +119,9 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
   const outstanding = p.status === "invites_pending" || p.status === "pending_owner";
   const canFinalize = has("accepted") && !has("invited") && (p.status === "invites_pending" || p.status === "awaiting_final");
   const final = p.status === "awaiting_final" || p.status === "confirmed";
+  // Once the group is voting on (or has picked) a place, the manual picker only appears if the organizer asks for it.
+  const poll = useQuery({ queryKey: ["venue-poll", p.id], queryFn: () => api.venuePoll(p.id), enabled: canVoteVenue(p) });
+  const voting = !!poll.data && poll.data.status !== "not_started";
   return (
     <>
       <Header p={p} />
@@ -147,13 +150,15 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
         )}
         {p.members.some((m) => !m.is_initiator && ["invited", "accepted", "declined"].includes(m.status)) && <Roster p={p} title="Invitations" />}
         <JoinRequests p={p} />
-        {canFinalize && (!final || editing) && (
+        {canFinalize && (editing || (!final && !voting)) && (
           <Panel className="p-5 sm:p-6" aria-labelledby="finalize-title">
-            <h2 id="finalize-title" className="mb-4 section-title">{final ? "Change final details" : "Set the final public place and time"}</h2>
+            <h2 id="finalize-title" className="mb-4 section-title">{final || voting ? "Change final details" : "Set the final public place and time"}</h2>
             <FinalizeForm p={p} onDone={() => setEditing(false)} />
           </Panel>
         )}
-        {final && canFinalize && !editing && <div><Button variant="ghost" size="sm" onClick={() => setEditing(true)}>Change time or place</Button></div>}
+        {canFinalize && (final || voting) && !editing && (
+          <div><Button variant="ghost" size="sm" onClick={() => setEditing(true)}>{final ? "Change time or place" : "Set the place and time yourself instead"}</Button></div>
+        )}
         {p.status !== "cancelled" && (
           <SafetyActions proposalId={p.id} leaveLabel="Cancel this meetup" onLeave={() => navigate("/home", { replace: true })} />
         )}
