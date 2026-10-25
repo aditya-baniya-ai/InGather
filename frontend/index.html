@@ -7,6 +7,16 @@
     <meta name="description" content="InGather — Less scrolling. More together. A privacy-first agent that turns a private plan into a mutually approved small-group meetup." />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>ingather.</title>
+    <script>
+      // Apply the saved (or system) theme before the first paint, so dark mode never flashes white.
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("ingather.theme"); } catch (e) {}
+        var dark = t === "dark" || (t !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        if (dark) document.querySelector('meta[name="theme-color"]').setAttribute("content", "#0f1016");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

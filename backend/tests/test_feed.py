@@ -86,6 +86,14 @@ def test_feed_filters_by_category_and_seeding_covers_every_category(db, users, s
         assert len(only) == kinds[kind] and {i.activity_type for i in only} == {kind}
 
 
+def test_repeated_first_names_get_a_last_initial():
+    from types import SimpleNamespace
+
+    from app.services.feed import short_names
+    people = [SimpleNamespace(display_name=n) for n in ("Jamal Reyes", "Jamal Tran", "Jose Cruz")]
+    assert short_names(people) == ["Jamal R.", "Jamal T.", "Jose"]
+
+
 def test_blocked_hosts_and_members_are_hidden(db, users, settings, austin):
     target = groups(db)[0]
     db.add(Block(blocker_id=target.members[-1].user_id, blocked_id=users["alice"].id))

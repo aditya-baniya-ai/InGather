@@ -44,6 +44,16 @@ def first_name(user: User) -> str:
     return (user.display_name or "Someone").split(" ")[0][:30]
 
 
+def short_names(users: list[User]) -> list[str]:
+    """First names, adding a last initial where two people in the group share one ("Jamal R.", "Jamal T.")."""
+    firsts = [first_name(u) for u in users]
+    out = []
+    for u, f in zip(users, firsts):
+        parts = (u.display_name or "").split()
+        out.append(f"{f} {parts[-1][0]}." if firsts.count(f) > 1 and len(parts) > 1 else f)
+    return out
+
+
 def part_of_day(dt: datetime) -> str:
     return "morning" if dt.hour < 12 else "afternoon" if dt.hour < 17 else "evening"
 
@@ -175,6 +185,7 @@ class Feed:
               req: JoinRequest | None) -> FeedItemOut:
         local = as_utc(proposal.start_at).astimezone(ZoneInfo(plan.timezone))
         roster = self.roster(proposal)
+        names = short_names(roster)
         group_interests = list(dict.fromkeys([*plan.interests]))[:6]
         bits = [f"You share {self._join(shared[:3])}" if shared else "New interests to try"]
         if free_then is True:
@@ -184,8 +195,8 @@ class Feed:
         return FeedItemOut(
             proposal_id=proposal.id, title=proposal.activity_title, activity_type=plan.activity_type, city=plan.city,
             day=local.date(), part_of_day=part_of_day(local), venue_kind=KINDS.get(proposal.venue_category, "Public place"),
-            preview=plan.preview_text, host=FeedPerson(first_name=first_name(roster[0]), avatar_url=roster[0].avatar_url),
-            members=[FeedPerson(first_name=first_name(u), avatar_url=u.avatar_url) for u in roster[1:]],
+            preview=plan.preview_text, host=FeedPerson(first_name=names[0], avatar_url=roster[0].avatar_url),
+            members=[FeedPerson(first_name=n, avatar_url=u.avatar_url) for n, u in zip(names[1:], roster[1:])],
             group_size=len(roster), spots_left=self.spots_left(proposal, plan), group_interests=group_interests,
             shared_interests=shared[:5], match=round(fit * 100), reason="; ".join(bits),
             free_then=free_then, request_status=req.status.value if req else None,

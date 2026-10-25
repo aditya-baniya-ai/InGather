@@ -1,3 +1,4 @@
+import { ThemeToggle } from "./ThemeToggle";
 import type { ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Home, Inbox, PlusSquare, UserRound } from "lucide-react";
@@ -65,7 +66,7 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
             </li>
           ))}
         </ul>
-        <div className="mt-auto"><AccountMenu /></div>
+        <div className="mt-auto flex flex-col gap-1"><ThemeToggle label /><AccountMenu /></div>
       </nav>
 
       {/* Mobile top bar */}
@@ -76,6 +77,7 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
             <Inbox className="size-[22px]" strokeWidth={1.75} aria-hidden />
             {invites > 0 && <span className="absolute right-1 top-1"><Badge n={invites} /></span>}
           </NavLink>
+          <ThemeToggle />
           <AccountMenu placement="down" compact />
         </div>
       </header>

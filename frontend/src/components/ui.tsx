@@ -66,7 +66,7 @@ function FieldShell({ label, hint, error, id, children, optional }: { label: Rea
     </div>
   );
 }
-const controlCls = "w-full rounded-xl border border-line bg-surface px-3.5 min-h-11 outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-[#7a7d89] hover:border-control focus:border-violet focus:shadow-[0_0_0_3px_var(--color-violet-soft)] aria-invalid:border-danger";
+const controlCls = "w-full rounded-xl border border-line bg-surface px-3.5 min-h-11 outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-muted/80 hover:border-control focus:border-violet focus:shadow-[0_0_0_3px_var(--color-violet-soft)] aria-invalid:border-danger";
 
 type FieldProps = { label: ReactNode; hint?: ReactNode; optional?: boolean };
 
@@ -229,8 +229,11 @@ export function Dialog({ open, onClose, title, children, footer }: { open: boole
 
 export function SectionTitle({ children, action, id }: { children: ReactNode; action?: ReactNode; id?: string }) {
   return (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <h2 id={id} className="section-title">{children}</h2>
+    <div className="mb-3 flex items-end justify-between gap-3">
+      <div>
+        <h2 id={id} className="section-title">{children}</h2>
+        <span aria-hidden className="accent-bar mt-1.5 block" />
+      </div>
       {action}
     </div>
   );

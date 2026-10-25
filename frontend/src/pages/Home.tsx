@@ -70,16 +70,18 @@ export function Home() {
       <Stories value={filter} onChange={setFilter} />
 
       {pendingInvites.length > 0 && (
-        <Link to="/invitations" className="press mt-6 flex min-h-14 items-center justify-between gap-3 rounded-[20px] bg-rose-soft px-5 py-3 hover:bg-[#f8dceb]">
+        <Link to="/invitations" className="press mt-6 flex min-h-14 items-center justify-between gap-3 rounded-[20px] bg-rose-soft px-5 py-3 hover:bg-rose-soft/80">
           <span><span className="font-semibold text-rose-ink">You've been invited to a small meetup.</span>
             <span className="block text-[13.5px] text-ink/80">{pendingInvites[0].activity_title} · {pendingInvites[0].city}</span></span>
           <ArrowRight className="size-5 text-rose-ink" aria-hidden />
         </Link>
       )}
 
+      <hr className="grad-rule my-8" />
       <FeedSection activity={filter} />
+      <hr className="grad-rule my-10" />
 
-      <section className="mt-8" aria-labelledby="plans-title">
+      <section aria-labelledby="plans-title">
         <SectionTitle id="plans-title" action={<Link to="/create" className="press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[14px] font-medium hover:bg-raised"><Plus className="size-4" aria-hidden /> New plan</Link>}>
           Your plans
         </SectionTitle>

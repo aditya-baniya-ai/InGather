@@ -82,47 +82,58 @@ export function FeedCard({ item }: { item: FeedItem }) {
     try { await api.withdrawJoin(item.proposal_id); qc.invalidateQueries({ queryKey: keys.feed }); } catch (e) { setError(e); }
   };
   const shared = new Set(item.shared_interests.map((i) => i.toLowerCase()));
+  const category = CATEGORIES.find((c) => c.activity === item.activity_type)?.label ?? "Plans";
   return (
-    <article className="overflow-hidden rounded-[24px] border border-line bg-surface" aria-labelledby={`feed-${item.proposal_id}`}>
-      <header className="flex items-center gap-3 px-4 py-3">
-        <Avatar name={item.host.first_name} src={item.host.avatar_url} size={36} ring />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-semibold">{item.host.first_name}'s group</p>
-          <p className="truncate text-[12.5px] text-muted">{item.city} · {dayLabel(item.day)} · {PART[item.part_of_day]}</p>
+    <article className="post" aria-labelledby={`feed-${item.proposal_id}`}>
+      <div className="post-inner sm:grid sm:grid-cols-[minmax(0,220px)_1fr]">
+        {/* The whole photo: 4:5 on phones (like a post), its natural 2:3 beside the text on wider screens. */}
+        <div className={cx("relative overflow-hidden bg-[var(--cat-soft)]", `cat-${item.activity_type}`)}>
+          {/* A soft, blurred copy fills any space below the photo when the text side is taller. */}
+          <Cover activity={item.activity_type} city={item.city} className="absolute inset-0 hidden size-full scale-125 opacity-70 blur-2xl sm:block" />
+          <Cover activity={item.activity_type} city={item.city} className="relative block aspect-[4/5] w-full sm:aspect-[2/3]" />
+          <span className="cat-pill absolute top-3 left-3 rounded-full px-2.5 py-1 text-[12px] font-semibold shadow-sm">{category}</span>
         </div>
-        <Pill tone="emerald"><BrainCircuit className="size-3" aria-hidden /> {item.match}% fit</Pill>
-      </header>
-      <Cover activity={item.activity_type} city={item.city} className="h-40 w-full" />
-      <div className="p-4">
-        <h3 id={`feed-${item.proposal_id}`} className="text-[17px] font-semibold">{item.title}</h3>
-        <p className="mt-0.5 text-[13.5px] text-muted">{item.venue_kind} in {item.city}{item.preview ? ` · ${item.preview}` : ""}</p>
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Group interests">
-          {item.group_interests.map((i) => (
-            <li key={i} className={cx("rounded-full px-2.5 py-1 text-[12.5px]", shared.has(i.toLowerCase()) ? "bg-violet-soft font-medium text-violet-ink" : "bg-raised text-muted")}>{i}</li>
-          ))}
-        </ul>
-        <div className="mt-3"><People item={item} /></div>
-        <p className="mt-3 flex items-start gap-1.5 text-[13.5px]"><BrainCircuit className="mt-0.5 size-3.5 shrink-0 text-violet" aria-hidden /> {item.reason}</p>
-
-        {item.request_status === "accepted" ? (
-          <div className="mt-4 rounded-2xl bg-emerald-soft p-4">
-            <p className="flex items-center gap-1.5 font-semibold text-emerald-ink"><Check className="size-4" aria-hidden /> You're in!</p>
-            {item.welcome && <p className="mt-1 text-[14px]">{item.welcome}</p>}
-            <Link to={`/proposals/${item.proposal_id}`} className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-medium underline-offset-4 hover:underline">
-              Open the group <ArrowRight className="size-4" aria-hidden />
-            </Link>
+        <div className="flex min-w-0 flex-col p-4 sm:p-5">
+          <header className="flex items-center gap-3">
+            <Avatar name={item.host.first_name} src={item.host.avatar_url} size={38} ring />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[14px] font-semibold">{item.host.first_name}'s group</p>
+              <p className="truncate text-[12.5px] text-muted">{item.city} · {dayLabel(item.day)} · {PART[item.part_of_day]}</p>
+            </div>
+            <Pill tone="emerald"><BrainCircuit className="size-3" aria-hidden /> {item.match}% fit</Pill>
+          </header>
+          <h3 id={`feed-${item.proposal_id}`} className="mt-4 text-[19px] leading-snug font-semibold tracking-[-0.015em]">{item.title}</h3>
+          <p className="mt-1 text-[13.5px] text-muted">{item.venue_kind} in {item.city}{item.preview ? ` · ${item.preview}` : ""}</p>
+          <hr className="grad-rule my-4" />
+          <ul className="flex flex-wrap gap-1.5" aria-label="Group interests">
+            {item.group_interests.map((i) => (
+              <li key={i} className={cx("rounded-full px-2.5 py-1 text-[12.5px]", shared.has(i.toLowerCase()) ? "bg-violet-soft font-medium text-violet-ink ring-1 ring-violet/30" : "bg-raised text-muted")}>{i}</li>
+            ))}
+          </ul>
+          <div className="mt-4"><People item={item} /></div>
+          <p className="mt-3 flex items-start gap-1.5 text-[13.5px]"><BrainCircuit className="mt-0.5 size-3.5 shrink-0 text-violet" aria-hidden /> {item.reason}</p>
+          <div className="mt-auto pt-4">
+            {item.request_status === "accepted" ? (
+              <div className="rounded-2xl bg-emerald-soft p-4">
+                <p className="flex items-center gap-1.5 font-semibold text-emerald-ink"><Check className="size-4" aria-hidden /> You're in!</p>
+                {item.welcome && <p className="mt-1 text-[14px]">{item.welcome}</p>}
+                <Link to={`/proposals/${item.proposal_id}`} className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-medium underline-offset-4 hover:underline">
+                  Open the group <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </div>
+            ) : item.request_status === "pending" ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <Pill tone="amber"><Clock className="size-3" aria-hidden /> Request sent · waiting for {item.host.first_name}</Pill>
+                <Button variant="ghost" size="sm" onClick={withdraw}>Withdraw</Button>
+              </div>
+            ) : joining ? (
+              <JoinForm item={item} onDone={() => setJoining(false)} />
+            ) : (
+              <Button onClick={() => setJoining(true)} icon={<UsersRound className="size-4" aria-hidden />}>Ask to join</Button>
+            )}
+            <InlineError error={error} />
           </div>
-        ) : item.request_status === "pending" ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Pill tone="amber"><Clock className="size-3" aria-hidden /> Request sent · waiting for {item.host.first_name}</Pill>
-            <Button variant="ghost" size="sm" onClick={withdraw}>Withdraw</Button>
-          </div>
-        ) : joining ? (
-          <JoinForm item={item} onDone={() => setJoining(false)} />
-        ) : (
-          <Button className="mt-4" onClick={() => setJoining(true)} icon={<UsersRound className="size-4" aria-hidden />}>Ask to join</Button>
-        )}
-        <InlineError error={error} />
+        </div>
       </div>
     </article>
   );
@@ -131,11 +142,11 @@ export function FeedCard({ item }: { item: FeedItem }) {
 function ChipGroup<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
   return (
     <div role="radiogroup" aria-label={label} className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
-      <span className="shrink-0 text-[12.5px] font-medium text-muted">{label}</span>
+      <span className="w-12 shrink-0 text-[12px] font-semibold tracking-wide text-muted uppercase">{label}</span>
       {options.map((o) => (
         <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
           className={cx("press min-h-9 shrink-0 rounded-full px-3.5 text-[13.5px] transition-colors",
-            value === o.value ? "bg-ink font-medium text-surface" : "bg-raised text-ink hover:bg-sunk")}>
+            value === o.value ? "ig-grad font-medium text-white shadow-[0_4px_14px_-6px_rgb(214_41_118/0.6)]" : "bg-raised text-ink hover:bg-sunk")}>
           {o.label}
         </button>
       ))}
@@ -151,13 +162,14 @@ export function FeedSection({ activity = null }: { activity?: string | null }) {
   const kind = activity ? CATEGORIES.find((c) => c.activity === activity)?.label : null;
   const shown = (feed.data ?? []).filter((i) => i.request_status || matchesDay(i.day, day));
   return (
-    <section className="mt-8" aria-labelledby="feed-title">
+    <section aria-labelledby="feed-title">
       <SectionTitle id="feed-title">{kind ? `${kind} groups with room for you` : "Groups with room for you"}</SectionTitle>
-      <p className="-mt-2 mb-4 flex items-center gap-1.5 text-[13.5px] text-muted">
-        <BrainCircuit className="size-3.5" aria-hidden /> Ranked for you by the InGather matcher from your interests and plans. Hosts approve every request.
+      <p className="mb-5 flex items-center gap-1.5 text-[13.5px] text-muted">
+        <BrainCircuit className="size-3.5 shrink-0" aria-hidden /> Ranked for you by the InGather matcher from your interests and plans. Hosts approve every request.
       </p>
-      <div className="mb-4 flex flex-col gap-2">
+      <div className="mb-6 flex flex-col gap-2.5 rounded-[20px] border border-line bg-surface/80 p-3.5 shadow-[0_8px_24px_-18px_rgb(150_47_191/0.45)] backdrop-blur">
         <ChipGroup label="Sort" value={sort} options={SORTS} onChange={(v) => { setSort(v); remember("ingather.feedSort", v); }} />
+        <div className="h-px bg-line" />
         <ChipGroup label="When" value={day} options={DAYS} onChange={(v) => { setDay(v); remember("ingather.feedDay", v); }} />
       </div>
       {feed.isPending ? <LoadingBlock label="Finding groups for you" rows={2} />
@@ -168,8 +180,11 @@ export function FeedSection({ activity = null }: { activity?: string | null }) {
             </EmptyState>
           ) : (
             <>
-              <p className="mb-3 text-[13px] text-muted" aria-live="polite">{shown.length} {shown.length === 1 ? "group" : "groups"} · {sort === "match" ? "best match first" : "soonest first"}</p>
-              <div className="flex flex-col gap-5">{shown.map((i) => <FeedCard key={i.proposal_id} item={i} />)}</div>
+              <div className="mb-4 flex items-center gap-3">
+                <p className="shrink-0 text-[13px] font-medium text-muted" aria-live="polite">{shown.length} {shown.length === 1 ? "group" : "groups"} · {sort === "match" ? "best match first" : "soonest first"}</p>
+                <hr className="grad-rule flex-1" />
+              </div>
+              <div className="flex flex-col gap-7">{shown.map((i) => <FeedCard key={i.proposal_id} item={i} />)}</div>
             </>
           )}
     </section>
