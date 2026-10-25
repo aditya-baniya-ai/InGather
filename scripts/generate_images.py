@@ -1,7 +1,7 @@
-"""Generate the static activity/city photo library with Muse Image.
+"""Generate the static photo library with Muse Image, using the same realistic prompts as plan covers.
 
-Run once (costs one Muse Image call per missing file):  cd backend && uv run python ../scripts/generate_images.py
-Writes frontend/public/images/<name>.jpg (resized with macOS `sips`); existing files are skipped.
+Run (one Muse Image call per missing file):  cd backend && uv run python ../scripts/generate_images.py [--force]
+Writes frontend/public/images/<activity>.jpg and <activity>-<city>.jpg (resized with macOS `sips`).
 """
 
 import subprocess
@@ -10,21 +10,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
+from app.ai.imagery import SCENES, photo_prompt  # noqa: E402
 from app.ai.muse import MuseClient  # noqa: E402
 from app.config import get_settings  # noqa: E402
 
-STYLE = "Editorial lifestyle photograph, natural light, warm and inviting, shallow depth of field, no text, no logos, no recognizable faces."
-SUBJECTS = {
-    "conference": "A modern conference venue foyer at golden hour, attendees chatting in small groups with lanyards, coffee cups on high tables.",
-    "travel": "A traveler's view of a charming city street at dusk, string lights, cafés and people strolling.",
-    "hackathon": "A lively university hackathon at night: laptops, stickers, snacks and small teams collaborating at long tables.",
-    "study": "A bright university library study space with books, laptops and a small study group at a wooden table.",
-    "coffee": "A cozy specialty coffee shop with latte art on a table by a sunny window, friends chatting in the background.",
-    "event": "An outdoor evening music event with festoon lights and a small group of friends enjoying the atmosphere.",
-    "other": "A small group of friends walking through a sunny city park, seen from behind, autumn trees.",
-    "city-philadelphia": "Philadelphia at golden hour: historic brick rowhouses and the skyline, a lively street with cafés.",
-    "city-austin": "Austin, Texas at sunset: the skyline over Lady Bird Lake with the UT Austin tower in the distance.",
-}
+# Activity + city pairs used by the demo plans; keep in sync with CITY_ACTIVITY_PHOTOS in frontend Brand.tsx.
+PAIRS = [("conference", "Philadelphia"), ("travel", "Philadelphia"), ("study", "Philadelphia"),
+         ("event", "Philadelphia"), ("hackathon", "Austin")]
 
 
 def main() -> None:
@@ -33,16 +25,18 @@ def main() -> None:
     client = MuseClient(get_settings())
     if not client.ai_live:
         sys.exit("MODEL_API_KEY is not set.")
-    for name, subject in SUBJECTS.items():
+    jobs = {a: photo_prompt(a, "a typical US city") for a in SCENES}
+    jobs |= {f"{a}-{c.lower()}": photo_prompt(a, c) for a, c in PAIRS}
+    for name, prompt in jobs.items():
         target = out / f"{name}.jpg"
-        if target.exists():
+        if target.exists() and "--force" not in sys.argv:
             continue
-        image = client.generate_image(f"{subject} {STYLE}")
+        image = client.generate_image(prompt)
         raw = out / f"{name}.{image.fmt}"
         raw.write_bytes(image.data)
         subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "72", "-Z", "1200", str(raw), "--out", str(target)], check=True, capture_output=True)
         raw.unlink()
-        print(f"{name}: {target.stat().st_size // 1024} KB")
+        print(f"{name}: {target.stat().st_size // 1024} KB", flush=True)
 
 
 if __name__ == "__main__":

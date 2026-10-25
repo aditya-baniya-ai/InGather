@@ -55,8 +55,8 @@ class MuseClient:
             extra_body={
                 "output_format": "webp",
                 "reasoning_strength": "low",
-                # Prompt is generic; no need for the generator to browse.
-                "tool_enablement": {"enable_image_search": False, "enable_web_search": False, "enable_shell": False},
+                # Built-in image search lets it match what the real city and venue types look like.
+                "tool_enablement": {"enable_image_search": True, "enable_web_search": True, "enable_shell": False},
             },
         )
         fmt = (getattr(res, "output_format", None) or "webp").lower()

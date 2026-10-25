@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
+from app.ai.imagery import photo_prompt
 from app.ai.muse import MuseClient
 from app.ai.intake import IntakeAgent
 from app.config import Settings, get_settings
@@ -24,16 +25,6 @@ router = APIRouter(prefix="/api", tags=["ai"])
 
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
 WAV_TYPES = {"audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave", "application/octet-stream", ""}
-COVER_STYLE = {
-    "travel": "a sunny city street scene with landmarks",
-    "conference": "a bright modern conference hall lobby",
-    "hackathon": "laptops and coffee cups on a long table in a lively hackathon space",
-    "study": "an inviting library table with books and warm light",
-    "coffee": "a cozy café table with latte art",
-    "event": "a festive public event with string lights",
-}
-
-
 def muse(settings: Settings = Depends(get_settings)) -> MuseClient:
     client = MuseClient(settings)
     if not client.ai_live:
@@ -59,13 +50,7 @@ def plan_out(db: Session, settings: Settings, plan: Plan):
 
 def cover_prompt(plan: Plan) -> str:
     """Built ONLY from activity type, city and interests: no names, goal text or other personal data."""
-    scene = COVER_STYLE.get(plan.activity_type, "friends meeting at a public place")
-    interests = ", ".join(i for i in (plan.interests or [])[:3] if i.replace(" ", "").isalnum())
-    return (
-        f"Editorial lifestyle photograph of {scene} in {plan.city[:60]}"
-        + (f", subtle hints of {interests}" if interests else "")
-        + ". Natural light, warm and inviting, shallow depth of field, no recognizable faces, no text, no logos, wide banner composition."
-    )
+    return photo_prompt(plan.activity_type, plan.city, plan.interests)
 
 
 @router.post("/plans/draft", response_model=PlanDraftOut)
