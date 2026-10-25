@@ -248,8 +248,11 @@ class Proposals:
                 )
                 .values(status=ProposalStatus.confirmed)
             )
-            if done.rowcount == 1 and proposal.icebreaker:
-                self.db.add(Message(proposal_id=proposal.id, sender_id=None, body=proposal.icebreaker))
+            if done.rowcount == 1:
+                from app.services.chats import Chats
+                Chats(self.db, self.settings).connect(proposal)
+                if proposal.icebreaker:
+                    self.db.add(Message(proposal_id=proposal.id, sender_id=None, body=proposal.icebreaker))
         self.db.commit()
         self.db.refresh(proposal)
         return proposal

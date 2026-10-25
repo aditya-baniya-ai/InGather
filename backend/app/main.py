@@ -13,6 +13,7 @@ ROUTERS = [
     "app.api.plans",
     "app.api.agent",
     "app.api.proposals",
+    "app.api.chats",
     "app.api.safety",
     "app.api.verification",
     "app.ai.routes",  # voice transcription, cover images

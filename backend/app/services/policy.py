@@ -7,7 +7,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import AgentRun, Block, MemberStatus, Plan, Proposal, ProposalStatus, User, Verification
+from app.models import AgentRun, Block, DirectConnection, MemberStatus, Plan, Proposal, ProposalStatus, User, Verification
 from app.security import not_found
 
 
@@ -61,6 +61,15 @@ class Policy:
         if role is None or (roles and role not in roles):
             raise not_found()
         return proposal, role
+
+    def direct_peer(self, user: User, peer_id: UUID) -> User:
+        pair = tuple(sorted((user.id, peer_id), key=str))
+        if user.id == peer_id or self.blocked_between(user.id, peer_id) or self.db.get(DirectConnection, pair) is None:
+            raise not_found()
+        peer = self.db.get(User, peer_id)
+        if peer is None:
+            raise not_found()
+        return peer
 
     @staticmethod
     def _pair(a: UUID, b: UUID):

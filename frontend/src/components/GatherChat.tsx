@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, MapPin, MessageCircle, Send, Sparkles } from "lucide-react";
 import type { Proposal } from "../lib/api";
 import { api } from "../lib/api";
+import { useMessenger } from "../lib/messenger";
 import { useAuth } from "../lib/auth";
 import { keys, useMessages } from "../lib/hooks";
 import { formatTime } from "../lib/time";
@@ -12,6 +13,7 @@ import { VenueMap } from "./VenueMap";
 
 export function GatherChat({ proposal: p }: { proposal: Proposal }) {
   const { me } = useAuth();
+  const messagePerson = useMessenger();
   const id = useId();
   const qc = useQueryClient();
   const confirmed = p.status === "confirmed";
@@ -48,7 +50,7 @@ export function GatherChat({ proposal: p }: { proposal: Proposal }) {
         <div className="flex items-center gap-3">
           <span className="ig-grad grid size-10 shrink-0 place-items-center rounded-2xl text-white"><MessageCircle className="size-5" aria-hidden /></span>
           <div className="min-w-0 flex-1"><h2 className="section-title">Gather Room</h2><p className="truncate text-[12.5px] text-muted">{p.activity_title}</p></div>
-          <div className="flex -space-x-2">{people.slice(0, 4).map(m => <Avatar key={m.user_id} name={m.display_name} src={m.avatar_url} size={28} />)}</div>
+          <div className="flex -space-x-2">{people.slice(0, 4).map(m => confirmed && m.user_id !== me?.id ? <button key={m.user_id} type="button" aria-label={`Message ${m.display_name} privately`} title={`Message ${m.display_name}`} onClick={() => messagePerson(m)} className="press relative rounded-full hover:z-10 focus-visible:z-10"><Avatar name={m.display_name} src={m.avatar_url} size={28} /></button> : <Avatar key={m.user_id} name={m.display_name} src={m.avatar_url} size={28} />)}</div>
         </div>
         <p className="mt-2 text-[12px] text-muted break-words">{people.map(m => m.display_name).join(", ")} · {confirmed ? "Everyone confirmed" : "Waiting for confirmations"}</p>
       </header>

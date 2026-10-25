@@ -87,7 +87,7 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
           {children}
           <footer className="mt-16 text-[12.5px] leading-relaxed text-muted">{DISCLAIMER}</footer>
         </main>
-        <aside aria-label="Context" className={cx("sticky top-0 hidden h-dvh shrink-0 overflow-y-auto py-10 xl:block", chatAside ? "w-[360px] 2xl:w-[400px]" : "w-[320px]")}>
+        <aside aria-label="Context" className={cx("sticky top-0 hidden h-dvh shrink-0 overflow-y-auto pt-20 pb-10 xl:block", chatAside ? "w-[360px] 2xl:w-[400px]" : "w-[320px]")}>
           {aside ?? <SafetyTips />}
         </aside>
       </div>

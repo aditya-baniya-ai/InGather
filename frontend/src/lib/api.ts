@@ -24,6 +24,8 @@ export interface Me {
   group_only: boolean;
   can_discover: boolean;
 }
+export interface ChatPerson { user_id: string; display_name: string; avatar_url: string | null }
+export interface Conversation { id: string; kind: "group" | "direct"; title: string; people: ChatPerson[]; last_message: string | null; last_sender_name: string | null; updated_at: string }
 export interface TokenOut { access_token: string; token_type: "bearer"; user: Me }
 export interface DemoAccount { email: string; display_name: string; avatar_url: string | null; bio: string | null }
 
@@ -266,6 +268,10 @@ export class ApiClient {
   leave = (id: string) => this.post<Proposal | undefined>(`/api/proposals/${id}/leave`);
   messages = (id: string) => this.get<Message[]>(`/api/proposals/${id}/messages`);
   sendMessage = (id: string, body: string) => this.post<Message>(`/api/proposals/${id}/messages`, { body });
+
+  chats = () => this.get<Conversation[]>("/api/chats");
+  directMessages = (id: string) => this.get<Message[]>(`/api/chats/people/${id}/messages`);
+  sendDirectMessage = (id: string, body: string) => this.post<Message>(`/api/chats/people/${id}/messages`, { body });
 
   // safety
   block = (user_id: string) => this.post<void>("/api/blocks", { user_id });

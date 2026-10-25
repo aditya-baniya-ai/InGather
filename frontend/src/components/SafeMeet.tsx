@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../lib/auth";
+import { useMessenger } from "../lib/messenger";
 import { VenueMap } from "./VenueMap";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -90,6 +92,8 @@ async function shareDetails(p: Proposal): Promise<string> {
 
 /** Screen I: final details, per-person confirmation, safety reminders. Never claims safety. */
 export function SafeMeet({ p }: { p: Proposal }) {
+  const { me } = useAuth();
+  const messagePerson = useMessenger();
   const setProposal = useSetProposal();
   const people = participantsOf(p);
   const confirmedCount = people.filter((m) => m.confirmed).length;
@@ -126,6 +130,7 @@ export function SafeMeet({ p }: { p: Proposal }) {
           <li key={m.user_id} className="flex items-center gap-3">
             <Avatar name={m.display_name} src={m.avatar_url} size={32} />
             <span className="flex-1 text-[15px]">{m.display_name}{m.is_initiator && <span className="text-muted"> · organizer</span>}</span>
+            {confirmed && m.user_id !== me?.id && <button type="button" onClick={() => messagePerson(m)} aria-label={`Message ${m.display_name}`} className="press grid size-9 shrink-0 place-items-center rounded-full bg-violet-soft text-violet-ink hover:bg-violet-soft/70"><MessageCircle className="size-4" aria-hidden /></button>}
             {m.confirmed ? <Pill tone="emerald"><Check className="size-3.5" aria-hidden /> Confirmed</Pill> : <Pill tone="neutral">Not yet</Pill>}
           </li>
         ))}

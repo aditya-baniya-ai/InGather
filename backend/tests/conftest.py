@@ -14,7 +14,7 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app import db as app_db  # noqa: E402
-from app.api import agent, auth, plans, proposals, safety  # noqa: E402
+from app.api import agent, auth, chats, plans, proposals, safety  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.models import AgentEvent, AgentRun, Plan, RunStatus, now  # noqa: E402
 from app.security import Passwords, Tokens  # noqa: E402
@@ -52,7 +52,7 @@ def settings():
 @pytest.fixture
 def app(engine):
     application = FastAPI()
-    for module in (auth, plans, agent, proposals, safety):
+    for module in (auth, plans, agent, proposals, safety, chats):
         application.include_router(module.router)
 
     def get_db():

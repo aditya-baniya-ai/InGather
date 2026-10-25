@@ -177,3 +177,9 @@ Offline (no key): each agent has a deterministic fallback; reviewer runs determi
 `public_location` is an optional owner-private public event venue/address (max 200 characters). Lookup sends only that value and city to Nominatim, then public coordinates to Overpass. `places` contains `{id, name, category, latitude, longitude, address, distance_m, source}` within 1.5 km, sorted by straight-line distance. A provider failure returns `status=unavailable` and an empty list. Successful lookups are cached for 30 minutes.
 
 `venue_place_id` must match a server-returned place for this plan. Selection stores `ProposalOut.venue_details` with the chosen meetup coordinates, never the event origin. It follows venue disclosure: owner, then accepted members during final confirmation/confirmed states. Manual venue changes clear the old coordinates. A map listing does not set `venue_verified` or imply a booking.
+
+### Messaging inbox and individual conversations
+
+`GET /api/chats` returns the signed-in user's confirmed group chats and individual connections as `{id, kind: "group"|"direct", title, people: [{user_id, display_name, avatar_url}], last_message, last_sender_name, updated_at}`. Only the user's own message previews are included. No contact details are returned.
+
+`GET /api/chats/people/{user_id}/messages` returns the latest 200 direct messages in chronological order (`MessageOut`). `POST` to the same path accepts `MessageIn` and returns the stored `MessageOut` (201); sender identity always comes from authentication. Both endpoints require a connection established by a fully confirmed shared meetup. Connections persist after the meetup. Self, unconnected and blocked peers return 404 in either direction; sending uses the existing per-user message rate limit. Group chat remains on `/api/proposals/{id}/messages` and is kept separate from direct messages.

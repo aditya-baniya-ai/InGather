@@ -390,3 +390,19 @@ class PlanDraftOut(BaseModel):
     missing: list[str] = Field(default_factory=list)
     notes: str = ""
     mode: Literal["live"] = "live"
+
+
+class ChatPerson(BaseModel):
+    user_id: UUID
+    display_name: str
+    avatar_url: str | None
+
+
+class ConversationOut(BaseModel):
+    id: UUID
+    kind: Literal["group", "direct"]
+    title: str
+    people: list[ChatPerson]
+    last_message: str | None = None
+    last_sender_name: str | None = None
+    updated_at: UTC
