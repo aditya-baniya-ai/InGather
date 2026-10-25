@@ -21,27 +21,6 @@ function invitedLine(p: Proposal): string | null {
   return `Already invited: ${out.map((m) => `${m.display_name} (${m.status === "accepted" ? "accepted" : "pending"})`).join(", ")}.`;
 }
 
-function AgentGuardrails() {
-  return (
-    <div className="rounded-[20px] bg-raised p-5 text-[14px]">
-      <h2 className="text-[15px] font-semibold">What matching can do</h2>
-      <ul className="mt-2 flex flex-col gap-1.5">
-        <li>Search only opted-in, eligible plans</li>
-        <li>Score fit with an ML model trained on real group data</li>
-        <li>Check if a group's times overlap, without showing anyone's schedule</li>
-        <li>Suggest people and explain why</li>
-      </ul>
-      <h2 className="mt-4 text-[15px] font-semibold">What it can't do</h2>
-      <ul className="mt-2 flex flex-col gap-1.5">
-        <li>Invite anyone without your approval</li>
-        <li>Confirm a meetup for you</li>
-        <li>Show your itinerary to anyone</li>
-      </ul>
-      <p className="mt-4 text-[13px] text-muted">These limits are enforced by the server's checks, whatever the model scores.</p>
-    </div>
-  );
-}
-
 function PlanHeader({ plan }: { plan: Plan }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState<"cover" | "pause" | null>(null);
@@ -125,7 +104,7 @@ export function AgentWorkspace() {
   const [error, setError] = useState<unknown>(null);
   const created = (useLocation().state as { created?: boolean } | null)?.created;
 
-  if (plan.isPending) return <AppShell aside={<AgentGuardrails />}><LoadingBlock label="Loading plan" /></AppShell>;
+  if (plan.isPending) return <AppShell><LoadingBlock label="Loading plan" /></AppShell>;
   if (plan.isError && plan.error instanceof ApiError && plan.error.status === 404) {
     // Removed plans, another account's plan, or a link from before the demo data was reset: nothing to retry.
     return (
@@ -153,7 +132,7 @@ export function AgentWorkspace() {
     && p.discovery_mode !== "paused" && me?.can_discover !== false;
 
   return (
-    <AppShell aside={<AgentGuardrails />}>
+    <AppShell>
       <PlanHeader plan={p} />
       <div className="mb-6"><PublicLocation key={p.id} plan={p} /></div>
       {created && !run.data && <p className="rise mb-4 rounded-2xl bg-emerald-soft px-4 py-3 text-[14.5px] text-emerald-ink" role="status">{p.discovery_mode === "mutual_discovery" ? "Posted. Your plan is on Home for people with similar interests; you decide who joins." : "Plan saved privately. Nobody else can see it."}</p>}
@@ -213,7 +192,7 @@ export function AgentIndex() {
   const active = plans.data.filter((p) => p.status !== "cancelled");
   if (active.length === 1) return <Navigate to={`/plans/${active[0].id}`} replace />;
   return (
-    <AppShell aside={<AgentGuardrails />}>
+    <AppShell>
       <h1 className="mb-1 page-title">Gather <span className="ig-text">Agent</span></h1>
       <p className="mb-6 text-[15px] text-muted">Pick a plan. Your agent works on one private plan at a time.</p>
       {active.length === 0 ? (
