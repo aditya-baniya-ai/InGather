@@ -8,6 +8,7 @@ import { api, type FeedItem } from "../lib/api";
 import { DAYS, SORTS, matchesDay, remember, remembered, type DayFilter, type FeedSort } from "../lib/feed";
 import { keys, useFeed } from "../lib/hooks";
 import { CATEGORIES } from "../lib/vocab";
+import { useAuth } from "../lib/auth";
 
 /** "Tue, Oct 27" from a plain YYYY-MM-DD (the group's local date). */
 export function dayLabel(day: string): string {
@@ -161,6 +162,7 @@ export function FeedSection({ activity = null }: { activity?: string | null }) {
   const feed = useFeed(sort, activity);
   const kind = activity ? CATEGORIES.find((c) => c.activity === activity)?.label : null;
   const shown = (feed.data ?? []).filter((i) => i.request_status || matchesDay(i.day, day));
+  const { me } = useAuth();
   return (
     <section aria-labelledby="feed-title">
       <SectionTitle id="feed-title">{kind ? `${kind} groups with room for you` : "Groups with room for you"}</SectionTitle>
@@ -174,7 +176,12 @@ export function FeedSection({ activity = null }: { activity?: string | null }) {
       </div>
       {feed.isPending ? <LoadingBlock label="Finding groups for you" rows={2} />
         : feed.isError ? <ErrorState error={feed.error} onRetry={() => feed.refetch()} what="your feed" />
-          : shown.length === 0 ? (
+          : me?.can_discover === false ? (
+            <EmptyState title="Verify your account to see open groups.">
+              Groups are only shown to verified adults. It takes a few seconds.{" "}
+              <Link to="/verify" className="font-medium text-ink underline underline-offset-4">Verify now</Link>
+            </EmptyState>
+          ) : shown.length === 0 ? (
             <EmptyState title={`No open ${kind ? `${kind.toLowerCase()} ` : ""}groups ${day === "any" ? "for you right now" : DAYS.find((d) => d.value === day)?.label.toLowerCase()}.`}>
               {day === "any" ? "When people near your plans have a spot open, they'll show up here. Verified accounts only." : "Try another day, or check back later."}
             </EmptyState>
