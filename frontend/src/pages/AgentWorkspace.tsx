@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, ImagePlus, Lock, Pause, Play, Sparkles } from "lucide-react";
+import { ArrowRight, ImagePlus, Lock, Pause, Play, RotateCcw } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { RunStatus } from "../components/RunStatus";
 import { Cover } from "../components/Brand";
 import { CandidateList } from "../components/CandidateList";
 import { PublicLocation } from "../components/PublicLocation";
-import { VoiceButton } from "../components/VoiceButton";
-import { Button, EmptyState, ErrorState, InlineError, LoadingBlock, Panel, Pill } from "../components/ui";
-import { api, ApiError, type Plan, type Proposal } from "../lib/api";
+import { Button, EmptyState, ErrorState, InlineError, LoadingBlock, Pill } from "../components/ui";
+import { api, ApiError, type Plan, type Proposal, type Run } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { keys, useFollowRun, usePlan, usePlans, useProposal } from "../lib/hooks";
 import { formatDateRange } from "../lib/time";
@@ -25,7 +24,7 @@ function invitedLine(p: Proposal): string | null {
 function AgentGuardrails() {
   return (
     <div className="rounded-[20px] bg-raised p-5 text-[14px]">
-      <h2 className="text-[15px] font-semibold">What your agent can do</h2>
+      <h2 className="text-[15px] font-semibold">What matching can do</h2>
       <ul className="mt-2 flex flex-col gap-1.5">
         <li>Search only opted-in, eligible plans</li>
         <li>Score fit with an ML model trained on real group data</li>
@@ -87,15 +86,18 @@ function PlanHeader({ plan }: { plan: Plan }) {
   );
 }
 
-function ConsentCard({ plan }: { plan: Plan }) {
+function ConsentCard({ plan, onRun }: { plan: Plan; onRun: (r: Run) => void }) {
   const qc = useQueryClient();
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const allow = async () => {
     setBusy(true); setError(null);
-    try { qc.setQueryData(keys.plan(plan.id), await api.setDiscovery(plan.id, plan.discovery_mode, true)); }
-    catch (e) { setError(e); } finally { setBusy(false); }
+    try {
+      const saved = await api.setDiscovery(plan.id, plan.discovery_mode, true);
+      qc.setQueryData(keys.plan(plan.id), saved);
+      if (saved.discovery_mode !== "paused") onRun(await api.startRun(plan.id));  // start looking right away
+    } catch (e) { setError(e); } finally { setBusy(false); }
   };
   return (
     <div className="rounded-2xl bg-violet-soft/70 p-4">
@@ -119,7 +121,6 @@ export function AgentWorkspace() {
   const { run, follow } = useFollowRun(planId, plan.data?.latest_run_id);
   const proposalId = run.data?.proposal_id ?? plan.data?.latest_proposal_id;
   const proposal = useProposal(proposalId);
-  const [goal, setGoal] = useState("");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const created = (useLocation().state as { created?: boolean } | null)?.created;
@@ -131,11 +132,14 @@ export function AgentWorkspace() {
 
   const start = async () => {
     setStarting(true); setError(null);
-    try { follow(await api.startRun(p.id, goal.trim() || undefined)); } catch (e) { setError(e); } finally { setStarting(false); }
+    try { follow(await api.startRun(p.id)); } catch (e) { setError(e); } finally { setStarting(false); }
   };
 
   const prop = proposal.data;
   const reviewing = prop && (prop.status === "pending_owner" || prop.status === "invites_pending") && prop.members.some((m) => m.status === "suggested");
+  // A plain retry button only when there is nothing to act on: no live group, not running, and no failure message (that has its own "Try again").
+  const canSearch = !running && run.data?.status !== "failed" && (!prop || prop.status === "cancelled")
+    && p.discovery_mode !== "paused" && me?.can_discover !== false;
 
   return (
     <AppShell aside={<AgentGuardrails />}>
@@ -143,36 +147,25 @@ export function AgentWorkspace() {
       <div className="mb-6"><PublicLocation key={p.id} plan={p} /></div>
       {created && !run.data && <p className="rise mb-4 rounded-2xl bg-emerald-soft px-4 py-3 text-[14.5px] text-emerald-ink" role="status">Plan saved privately. Nobody else can see it.</p>}
 
-      <Panel className="p-5 sm:p-6" aria-labelledby="agent-title">
-        <h2 id="agent-title" className="flex items-center gap-2 section-title"><Sparkles className="size-4 text-violet" aria-hidden /> Gather Agent</h2>
-        {!p.ai_consent ? <div className="mt-4"><ConsentCard plan={p} /></div> : (
-          <div className="mt-4">
-            <label htmlFor="goal" className="sr-only">What should your agent look for?</label>
-            <textarea id="goal" rows={2} value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={500}
-              placeholder="Find me a group after the conference."
-              className="w-full resize-none rounded-2xl border border-line bg-raised px-4 py-3 leading-relaxed outline-none transition-[border-color] focus:border-violet focus:bg-surface" />
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <Button variant="agent" size="lg" onClick={start} loading={starting || running} disabled={p.discovery_mode === "paused" || me?.can_discover === false}
-                icon={<Sparkles className="size-4" aria-hidden />}>{running ? "Working…" : "Find my people"}</Button>
-              <VoiceButton onText={(t) => setGoal((g) => (g ? `${g} ${t}` : t))} />
+      {!p.ai_consent ? <div className="mb-6"><ConsentCard plan={p} onRun={follow} /></div> : (
+        <div className="mb-6 flex flex-col gap-3">
+          {run.data && <RunStatus run={run.data} onRetry={start} />}
+          {canSearch && (
+            <div>
+              <Button variant="secondary" size="sm" onClick={start} loading={starting} icon={<RotateCcw className="size-4" aria-hidden />}>
+                {run.data ? "Search again" : "Find people"}
+              </Button>
             </div>
-            {p.discovery_mode === "paused" && <p className="mt-2 text-[13.5px] text-muted">Discovery is paused for this plan. Resume it to search.</p>}
-            {me?.can_discover === false && <p className="mt-2 text-[13.5px] text-muted">Your account isn't eligible for discovery yet (verification needed, or discovery paused in Profile).</p>}
-            <InlineError error={error} />
-            {(me?.verification === "unverified" || (error instanceof ApiError && error.detail === "not_eligible")) && (
-              <Link to="/verify" className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-medium underline-offset-4 hover:underline">Verify your account <ArrowRight className="size-4" aria-hidden /></Link>
-            )}
-          </div>
-        )}
-
-        {run.isError && !(run.error instanceof ApiError && run.error.status === 404) && <div className="mt-5"><ErrorState error={run.error} onRetry={() => run.refetch()} what="agent activity" /></div>}
-        {run.data && (
-          <div className="mt-5">
-            <RunStatus run={run.data} onRetry={start} />
-          </div>
-        )}
-        {run.isPending && run.fetchStatus === "fetching" && <div className="mt-6"><LoadingBlock label="Loading" rows={1} /></div>}
-      </Panel>
+          )}
+          {run.isError && !(run.error instanceof ApiError && run.error.status === 404) && <ErrorState error={run.error} onRetry={() => run.refetch()} what="the search" />}
+          {p.discovery_mode === "paused" && <p className="text-[13.5px] text-muted">Discovery is paused for this plan. Resume it to search.</p>}
+          {me?.can_discover === false && <p className="text-[13.5px] text-muted">Your account isn't eligible for discovery yet (verification needed, or discovery paused in Profile).</p>}
+          {(me?.verification === "unverified" || (error instanceof ApiError && error.detail === "not_eligible")) && (
+            <Link to="/verify" className="inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-medium underline-offset-4 hover:underline">Verify your account <ArrowRight className="size-4" aria-hidden /></Link>
+          )}
+          <InlineError error={error} />
+        </div>
+      )}
 
       <section className="mt-6" aria-labelledby="people-title">
         {proposal.isError && !(proposal.error instanceof ApiError && proposal.error.status === 404) && <ErrorState error={proposal.error} onRetry={() => proposal.refetch()} what="suggestions" />}

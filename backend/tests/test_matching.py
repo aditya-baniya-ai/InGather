@@ -102,3 +102,11 @@ def test_group_availability_ignores_ineligible_users(users, plan_of, matching):
     alice = plan_of(users["alice"])
     assert not matching.group_availability(alice, [users["eve"].id]).possible
     assert not matching.group_availability(alice, [users["noah"].id]).possible
+
+
+def test_spelling_variants_count_as_shared(db, users, plan_of, matching):
+    plan = plan_of(users["alice"])
+    plan.interests = ["technology", "Museums"]
+    db.commit()
+    jordan = next(c for c in matching.find_candidates(plan, set(), 12) if c.display_name == "Jordan")  # tech, museums
+    assert jordan.shared_interests == ["technology", "Museums"]

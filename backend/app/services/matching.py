@@ -111,6 +111,9 @@ class Matching:
             theirs = self.profile([*plans[0].interests, *user.interests])
             rows.append(pair_features(owner, theirs, Context(f.same_activity, f.preview.intent == plan.intent, f.same_event, f.overlap_hours)))
             f.preview.related = self._related(owner, theirs, plan.interests, [*plans[0].interests, *user.interests])
+            # Shared interests in the owner's words, counting spelling variants as the same ("technology" = "tech").
+            keys = set(theirs.keys)
+            f.preview.shared_interests = list(dict.fromkeys(i for i in plan.interests if self.matcher.space.key(i) in keys))
         for f, p in zip(fits, self.matcher.predict(rows)):
             f.preview.score = round(float(p), 4)
 

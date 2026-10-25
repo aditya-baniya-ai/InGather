@@ -6,6 +6,7 @@ import { AppShell } from "../components/AppShell";
 import { VoiceButton } from "../components/VoiceButton";
 import { AiMark, Button, Chip, cx, InlineError, Panel, SelectField, Switch, Tabs, TextArea, TextField } from "../components/ui";
 import { api, ApiError, type DiscoveryMode, type PlanDraft } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { draftToForm, MISSING_COPY, type FormKey, type PlanForm } from "../lib/forms";
 import { keys, useAction } from "../lib/hooks";
 import { browserTimeZone, TIMEZONES, windowsToUtc, type LocalWindow } from "../lib/time";
@@ -46,6 +47,7 @@ const nextWeek = () => { const d = new Date(Date.now() + 7 * 864e5); return d.to
 export function CreatePlan() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { me } = useAuth();
   const qc = useQueryClient();
   const tz0 = browserTimeZone();
   const [entry, setEntry] = useState<"describe" | "manual">("describe");
@@ -104,7 +106,16 @@ export function CreatePlan() {
         group_only: groupOnly, preview_text: preview.trim() || null, windows: windowsToUtc(windows, timezone),
       });
       const saved = mode !== plan.discovery_mode || consent ? await api.setDiscovery(plan.id, mode, consent) : plan;
-      qc.setQueryData(keys.plan(saved.id), saved);
+      // With AI processing allowed, start looking for people right away so the plan opens on its results.
+      let runId: string | null = null;
+      if (saved.ai_consent && saved.discovery_mode !== "paused" && me?.can_discover !== false) {
+        try {
+          const run = await api.startRun(saved.id);
+          qc.setQueryData(keys.run(run.id), run);
+          runId = run.id;
+        } catch { /* the plan page offers "Search again" */ }
+      }
+      qc.setQueryData(keys.plan(saved.id), runId ? { ...saved, latest_run_id: runId } : saved);
       qc.invalidateQueries({ queryKey: keys.plans });
       navigate(`/plans/${saved.id}`, { state: { created: true } });
     } catch (err) { setError(err); } finally { setBusy(false); }
@@ -157,7 +168,7 @@ export function CreatePlan() {
           <div className="flex flex-col gap-2">
             <TextArea label={<>Your goal, in your words{ai("goal")}</>} rows={4} value={goal} onChange={(e) => set({ goal: e.target.value })} required maxLength={2000}
               placeholder="I'm in Philadelphia for a tech conference Jan 17–19 and would love to explore after 5 PM."
-              hint="Private. Only you and, with your consent, your Gather Agent read this." />
+              hint="Private. Nobody else ever sees this." />
             {entry === "manual" && <VoiceButton onText={(t) => set({ goal: goal ? `${goal} ${t}` : t })} />}
           </div>
         </Panel>
@@ -247,7 +258,7 @@ export function CreatePlan() {
         <InlineError error={error} />
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" size="lg" loading={busy} icon={<ShieldCheck className="size-4" aria-hidden />}>Save private plan</Button>
-          <span className="text-[13.5px] text-muted">{consent ? "Next: ask Gather Agent to find your people." : "Your agent won't run until you allow AI processing."}</span>
+          <span className="text-[13.5px] text-muted">{consent ? "We'll start finding your people as soon as you save." : "Nobody is searched for until you allow AI processing."}</span>
         </div>
       </form>
       )}
