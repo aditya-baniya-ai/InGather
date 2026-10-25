@@ -65,7 +65,8 @@ export function draftToForm(d: PlanDraft, current: Pick<PlanForm, "timezone" | "
     timezone: d.timezone ?? undefined,
     startDate: start ?? undefined,
     endDate: end ?? undefined,
-    windows: windows.length ? windows : undefined,
+    // Never keep the form's placeholder time next to AI-set dates: no times found -> an empty row on the first day to fill in.
+    windows: windows.length ? windows : start ? [{ date: start, from: "", to: "" }] : undefined,
     interests: d.interests.length ? d.interests.map((t) => t.toLowerCase()).slice(0, 10) : undefined,
     intent: INTENTS.some((i) => i.value === d.intent) ? d.intent! : undefined,
     size: d.group_min && d.group_max ? [d.group_min, d.group_max] : undefined,

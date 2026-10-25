@@ -28,6 +28,10 @@ describe("draftToForm", () => {
     const { patch } = draftToForm(draft({ windows: [{ starts_at: "2027-01-17T22:00:00Z", ends_at: "2027-01-18T02:00:00Z" }] }), { timezone: "America/Chicago", goal: "" });
     expect(patch.windows).toEqual([{ date: "2027-01-17", from: "17:00", to: "21:00" }]);
   });
+  it("never keeps the placeholder time when the draft has dates but no free times", () => {
+    const { patch } = draftToForm(draft({ start_date: "2026-10-25", end_date: "2026-10-28", windows: [] }), { timezone: "America/Chicago", goal: "" });
+    expect(patch.windows).toEqual([{ date: "2026-10-25", from: "", to: "" }]);
+  });
   it("falls back to the form's timezone and derives dates from windows", () => {
     const { patch, filled } = draftToForm(draft({ timezone: null, start_date: null, end_date: null, windows: [
       { starts_at: "2027-03-02T01:00:00Z", ends_at: "2027-03-02T03:00:00Z" },
