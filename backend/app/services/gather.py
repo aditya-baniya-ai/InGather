@@ -268,7 +268,7 @@ class Run:
             raise StepError("no_suitable_group", "The group is already full.")
         base = [(aware(s), aware(e)) for s, e in self.matching.group_availability(self.plan, self.current_member_ids()).windows]
         pair = self.matching.cohesion(self.plan, [uuid.UUID(f.preview.user_id) for f in fits]) if hi > 1 else {}
-        size_bonus = 1.0 if "prefer_group" in self.prefs else 0.03  # asked for a bigger group: size comes first
+        size_bonus = 1.0  # fill the group size the owner asked for; smaller only when a bigger group shares no time
         time_weight = 0.04 if "schedule" in self.prefs else 0.02
         best, checked = None, 0
         for k in range(hi, lo - 1, -1):

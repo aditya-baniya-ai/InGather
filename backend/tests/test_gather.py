@@ -35,7 +35,7 @@ def test_alice_gets_a_compatible_group_at_a_public_place(db, users, plan_of, gat
     run = gather(users["alice"], plan_of(users["alice"]))
     assert run.status == RunStatus.completed and run.mode == "ml" and run.model == "matcher-1", run.error
     people = roster(db, run)
-    assert set(people) == {"Maya", "Jordan"} and set(people.values()) == {MemberStatus.suggested}
+    assert {"Maya", "Jordan"} <= set(people) and len(people) == 3 and set(people.values()) == {MemberStatus.suggested}  # fills group_max 4
     proposal = db.get(Proposal, run.proposal_id)
     assert proposal.venue_category == "cafe" and "Philadelphia" in proposal.venue_label
     assert (proposal.end_at - proposal.start_at).total_seconds() == 90 * 60  # 5:30-7pm: Maya until 7, Jordan from 5:30

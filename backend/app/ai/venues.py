@@ -49,6 +49,7 @@ INSTRUCTIONS = (
     f"(categories: {', '.join(PUBLIC_CATEGORIES)}) close to the given coordinates in the given city, that suit the "
     "group's activity and shared interests and are OPEN at the given local time. Prefer places quiet enough to talk "
     "and easy for everyone to reach. Never suggest homes, hotels, private clubs or anything residential. "
+    "Never mention latitude, longitude or coordinates in any text; say 'near the middle of your group' instead. "
     "For each venue give its name, street address or neighborhood, category, one short sentence on why it fits "
     "(fair travel for everyone, shared interests, quiet enough to talk, open at that time), the URL of the web page "
     "you found it on as source_url, and reservation_url ONLY if you found a real booking link (OpenTable, Resy, Tock "
@@ -143,7 +144,7 @@ def validate(raw: list, grounded: set[str], searched: bool) -> list[dict]:
         verified = bool(searched and source and norm_url(source) in grounded)
         out.append({
             "name": name, "area": area, "category": category,
-            "why": str(v.get("why") or "").strip()[:400],
+            "why": strip_coordinates(str(v.get("why") or ""))[:400],
             "reservation_url": _reservation(v.get("reservation_url"), _host(source)) if verified else None,
             "source_url": source if verified else None,
             "verified": verified,
@@ -195,3 +196,11 @@ class VenueAgent:
             names = {o["category"] for o in options}
             options += [f for f in fallback_options() if f["category"] not in names][: MAX_OPTIONS - len(options)]
         return VenueResult(options, "grounded" if any(o["verified"] for o in options) else "fallback")
+
+
+_COORDS = re.compile(r"(?:the\s+)?\(?-?\d{1,3}\.\d+°?,\s*-?\d{1,3}\.\d+°?\)?(?:\s+midpoint)?", re.I)
+
+
+def strip_coordinates(text: str) -> str:
+    """Users never see raw coordinates, even the rounded group midpoint."""
+    return re.sub(r"\s{2,}", " ", _COORDS.sub("the middle of your group", text)).strip()

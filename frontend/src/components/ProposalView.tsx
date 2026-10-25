@@ -131,11 +131,9 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
             <p className="mt-3 flex items-center gap-2 text-[13.5px] text-muted"><Lock className="size-4" aria-hidden /> {someoneIn ? "No new invitations have been sent." : "No invitation has been sent yet."}</p>
           </Panel>
         )}
-        {has("declined") && outstanding && (
+        {has("declined") && suggested && p.status === "pending_owner" && (
           <p className="rise rounded-2xl bg-violet-soft/70 px-4 py-3 text-[14.5px]" role="status">
-            {suggested && p.status === "pending_owner"
-              ? "Someone couldn't join. I found alternatives below. Nobody new is contacted until you approve."
-              : "Someone couldn't join. I'll check alternatives and ask you before contacting anyone new."}
+            Someone couldn't join. I found alternatives below. Nobody new is contacted until you approve.
           </p>
         )}
         {suggested && outstanding && (

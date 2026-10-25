@@ -251,6 +251,13 @@ class Proposals:
             if done.rowcount == 1:
                 from app.services.chats import Chats
                 Chats(self.db, self.settings).connect(proposal)
+                from app.ai.icebreaker import write_icebreaker
+
+                people = [m.user for m in proposal.members if m.status in ROSTER and m.status != MemberStatus.invited]
+                shared = sorted(set.intersection(*(set(u.interests or []) for u in people))) if people else []
+                proposal.icebreaker = write_icebreaker(
+                    self.settings, proposal.activity_title, proposal.venue_category, shared, proposal.icebreaker or ""
+                ) or None
                 if proposal.icebreaker:
                     self.db.add(Message(proposal_id=proposal.id, sender_id=None, body=proposal.icebreaker))
         self.db.commit()
