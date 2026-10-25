@@ -156,7 +156,7 @@ export function AgentWorkspace() {
     <AppShell aside={<AgentGuardrails />}>
       <PlanHeader plan={p} />
       <div className="mb-6"><PublicLocation key={p.id} plan={p} /></div>
-      {created && !run.data && <p className="rise mb-4 rounded-2xl bg-emerald-soft px-4 py-3 text-[14.5px] text-emerald-ink" role="status">Plan saved privately. Nobody else can see it.</p>}
+      {created && !run.data && <p className="rise mb-4 rounded-2xl bg-emerald-soft px-4 py-3 text-[14.5px] text-emerald-ink" role="status">{p.discovery_mode === "mutual_discovery" ? "Posted. Your plan is on Home for people with similar interests; you decide who joins." : "Plan saved privately. Nobody else can see it."}</p>}
 
       {!p.ai_consent ? <div className="mb-6"><ConsentCard plan={p} onRun={follow} /></div> : (
         <div className="mb-6 flex flex-col gap-3">

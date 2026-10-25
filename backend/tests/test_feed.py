@@ -192,3 +192,16 @@ def test_your_groups_lists_hosted_and_joined_groups(db, users, settings, austin,
     assert a["members"] == h["members"] and "Alice" in [m["first_name"] for m in a["members"]]
     assert a["members"][0]["first_name"] == host.display_name.split(" ")[0]  # host first
     assert as_user(users["eve"]).get("/api/groups").json() == []
+
+
+def test_public_plan_is_posted_to_the_feed_and_private_takes_it_down(users, plan_of, as_user):
+    alice, maya = as_user(users["alice"]), as_user(users["maya"])
+    plan_id = plan_of(users["alice"]).id  # Alice's plan starts private
+    first = maya.get("/api/feed")
+    assert not [i for i in first.json() if i["host"]["first_name"] == "Alice"]
+    assert alice.post(f"/api/plans/{plan_id}/discovery", {"mode": "mutual_discovery", "ai_consent": True}).status_code == 200
+    posted = [i for i in maya.get("/api/feed").json() if i["host"]["first_name"] == "Alice"]
+    assert len(posted) == 1 and posted[0]["spots_left"] >= 1
+    assert maya.post(f"/api/proposals/{posted[0]['proposal_id']}/join", {"message": "Hi!"}).status_code == 201
+    alice.post(f"/api/plans/{plan_id}/discovery", {"mode": "private_browse", "ai_consent": True})
+    assert not [i for i in as_user(users["sofia"]).get("/api/feed").json() if i["host"]["first_name"] == "Alice"]

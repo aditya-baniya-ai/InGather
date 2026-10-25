@@ -64,7 +64,6 @@ export function CreatePlan() {
   const [publicLocation, setPublicLocation] = useState("");
   const [preview, setPreview] = useState("");
   const [mode, setMode] = useState<DiscoveryMode>("private_browse");
-  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -105,10 +104,10 @@ export function CreatePlan() {
         start_date: startDate, end_date: endDate, intent, interests, group_min: size[0], group_max: size[1],
         group_only: groupOnly, preview_text: preview.trim() || null, windows: windowsToUtc(windows, timezone),
       });
-      const saved = mode !== plan.discovery_mode || consent ? await api.setDiscovery(plan.id, mode, consent) : plan;
-      // With AI processing allowed, start looking for people right away so the plan opens on its results.
+      // Public posts the plan to Home for people to ask to join; Private has the matcher suggest people right away.
+      const saved = await api.setDiscovery(plan.id, mode, true);
       let runId: string | null = null;
-      if (saved.ai_consent && saved.discovery_mode !== "paused" && me?.can_discover !== false) {
+      if (mode === "private_browse" && me?.can_discover !== false) {
         try {
           const run = await api.startRun(saved.id);
           qc.setQueryData(keys.run(run.id), run);
@@ -128,7 +127,7 @@ export function CreatePlan() {
   return (
     <AppShell>
       <header className="mb-6">
-        <h1 className="page-title">New <span className="ig-text">private</span> plan</h1>
+        <h1 className="page-title">New <span className="ig-text">plan</span></h1>
         <p className="mt-1 flex items-center gap-1.5 text-[15px] text-muted"><Lock className="size-4" aria-hidden /> Your private itinerary is not public.</p>
       </header>
 
@@ -233,32 +232,25 @@ export function CreatePlan() {
         </Panel>
 
         <Panel className="flex flex-col gap-4 p-5 sm:p-6">
-          <Fieldset legend="Discovery">
-            {(["private_browse", "mutual_discovery"] as DiscoveryMode[]).map((m) => (
+          <Fieldset legend="How do you want to find people?">
+            {(["mutual_discovery", "private_browse"] as DiscoveryMode[]).map((m) => (
               <label key={m} className={cx("flex cursor-pointer gap-3 rounded-2xl border p-4 transition-colors", mode === m ? "border-ink bg-raised" : "border-line hover:border-control")}>
                 <input type="radio" name="discovery" value={m} checked={mode === m} onChange={() => setMode(m)} className="mt-1 size-4 accent-[var(--color-ink)]" />
-                <span><span className="block font-medium">{DISCOVERY[m].label}{m === "private_browse" && <span className="font-normal text-muted"> · default</span>}</span>
+                <span><span className="block font-medium">{DISCOVERY[m].label}</span>
                   <span className="block text-[13.5px] text-muted">{DISCOVERY[m].help}</span></span>
               </label>
             ))}
           </Fieldset>
-          <label className="flex cursor-pointer gap-3 rounded-2xl bg-violet-soft/70 p-4">
-            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1 size-4 shrink-0 accent-[var(--color-violet)]" />
-            <span>
-              <span className="block font-medium">Let Gather Agent process this plan with AI</span>
-              <span className="block text-[13.5px] text-ink/80">
-                InGather's own matching model uses your plan details (activity, city, public event location if provided, dates, free times, interests) on our server to find a compatible group. None of it is sent to an outside AI model for matching.
-                Your exact times, email and identity documents are never sent. You can turn this off anytime.
-              </span>
-            </span>
-          </label>
+          <p className="text-[13px] text-muted">
+            Either way, InGather's own matching model uses your plan details on our server, never an outside AI. Your exact times, email and identity documents are never shown to anyone.
+          </p>
         </Panel>
 
         {problem && <p role="alert" className="text-[14px] text-danger">{problem}</p>}
         <InlineError error={error} />
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" size="lg" loading={busy} icon={<ShieldCheck className="size-4" aria-hidden />}>Save private plan</Button>
-          <span className="text-[13.5px] text-muted">{consent ? "We'll start finding your people as soon as you save." : "Nobody is searched for until you allow AI processing."}</span>
+          <Button type="submit" size="lg" loading={busy} icon={<ShieldCheck className="size-4" aria-hidden />}>{mode === "mutual_discovery" ? "Post plan" : "Save and find people"}</Button>
+          <span className="text-[13.5px] text-muted">{mode === "mutual_discovery" ? "It appears on Home; you decide who joins." : "Nobody sees it; we'll suggest people right away."}</span>
         </div>
       </form>
       )}

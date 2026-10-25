@@ -50,8 +50,8 @@ export const VENUE_CATEGORIES = [
 ];
 
 export const DISCOVERY: Record<DiscoveryMode, { label: string; help: string }> = {
-  private_browse: { label: "Private", help: "Only you see this plan. Your agent can search for you, but nobody can find you." },
-  mutual_discovery: { label: "Mutual discovery", help: "Your approved preview may be suggested to eligible, opted-in people. Never your itinerary." },
+  private_browse: { label: "Private · AI suggests people", help: "Nobody can see this plan. Our matcher suggests people you could reach out to, and nobody is contacted until you approve." },
+  mutual_discovery: { label: "Public · post it for everyone", help: "Your plan appears on Home for people with similar interests. They ask to join and you decide. Exact times and places stay hidden until you accept someone." },
   paused: { label: "Paused", help: "No searching and no new suggestions until you resume." },
 };
 

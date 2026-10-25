@@ -43,6 +43,13 @@ class Plans:
         plan.discovery_mode = DiscoveryMode(body.mode)
         plan.status = PlanStatus.paused if body.mode == DiscoveryMode.paused else PlanStatus.active
         self.db.add(ConsentEvent(user_id=user.id, kind="discovery", plan_id=plan.id, scope={"mode": body.mode}))
+        from app.services.feed import Feed  # "Public" = an open post on Home; "Private" takes it down
+
+        feed = Feed(self.db, self.settings)
+        if plan.discovery_mode == DiscoveryMode.mutual_discovery and plan.status == PlanStatus.active:
+            feed.publish(plan, user)
+        else:
+            feed.unpublish(plan)
         if body.ai_consent is not None:
             plan.ai_consent_at = now() if body.ai_consent else None
             self.db.add(

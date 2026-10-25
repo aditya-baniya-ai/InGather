@@ -64,6 +64,33 @@ class Feed:
         self.policy = Policy(db, settings)
         self.matching = matching or Matching(db, settings)
 
+    # ----- publishing a plan as an open post -----
+    def publish(self, plan: Plan, host: User) -> Proposal | None:
+        """"Public" plan: make sure there is an open group with the host on it, so it shows on Home for people to ask to
+        join. Reuses the plan's open group if it has one. Without an upcoming free time there's nothing to post."""
+        from app.services.gather import GENERIC, VENUES
+
+        current = self.db.scalars(select(Proposal).where(Proposal.plan_id == plan.id, Proposal.status.in_(JOINABLE))).first()
+        if current:
+            current.open_to_requests = True
+            return current
+        upcoming = sorted((as_utc(w.starts_at), as_utc(w.ends_at)) for w in plan.windows if as_utc(w.ends_at) > datetime.now(timezone.utc))
+        if not upcoming:
+            return None
+        start = max(upcoming[0][0], datetime.now(timezone.utc) + timedelta(hours=1))
+        end = min(upcoming[0][1], start + timedelta(minutes=90))
+        kind = VENUES.get(plan.activity_type, ("cafe",))[0]
+        proposal = Proposal(plan_id=plan.id, owner_id=host.id, status=ProposalStatus.invites_pending, activity_title=plan.title,
+                            start_at=start, end_at=end, venue_label=GENERIC[kind].format(city=plan.city), venue_category=kind,
+                            open_to_requests=True)
+        proposal.members.append(ProposalMember(user_id=host.id, is_initiator=True, status=MemberStatus.accepted))
+        self.db.add(proposal)
+        return proposal
+
+    def unpublish(self, plan: Plan) -> None:
+        for p in self.db.scalars(select(Proposal).where(Proposal.plan_id == plan.id, Proposal.open_to_requests.is_(True))):
+            p.open_to_requests = False
+
     # ----- what's open -----
     def _plan(self, proposal: Proposal) -> Plan:
         return self.db.get(Plan, proposal.plan_id)
