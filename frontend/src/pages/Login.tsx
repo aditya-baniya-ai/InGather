@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { FlaskConical } from "lucide-react";
 import { api, type TokenOut } from "../lib/api";
@@ -8,6 +9,14 @@ import { Wordmark } from "../components/Brand";
 import { DISCLAIMER } from "../components/AppShell";
 import { Avatar, Button, InlineError, PasswordField, TextField } from "../components/ui";
 import { MIN_PASSWORD, passwordCheck } from "../lib/forms";
+import { signIn as supabaseSignIn, signUp as supabaseSignUp, type SupabaseConfig } from "../lib/supabase";
+
+/** Supabase Auth settings from the server, when it's configured (real people sign up and in through Supabase). */
+function useSupabaseConfig(): SupabaseConfig | null {
+  const cfg = useQuery({ queryKey: ["auth-config"], queryFn: api.authConfig, staleTime: Infinity, retry: 1 });
+  const d = cfg.data;
+  return d?.supabase_url && d.supabase_anon_key ? { url: d.supabase_url, anonKey: d.supabase_anon_key } : null;
+}
 
 function DemoAccounts({ onToken }: { onToken: (t: TokenOut) => void }) {
   const demo = useDemoAccounts();
@@ -55,6 +64,8 @@ export function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [next, setNext] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const supabase = useSupabaseConfig();
   const from = (location.state as { from?: string } | null)?.from ?? "/home";
 
   if (signedIn) return <Navigate to={next ?? from} replace />;
@@ -70,10 +81,24 @@ export function Login() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (joining && !pw.ok) return;
-    setBusy(true); setError(null);
+    setBusy(true); setError(null); setNotice(null);
     // New accounts start unverified: onboarding continues at /verify.
-    try { if (joining) done(await api.register(email, password, name), "/verify"); else done(await api.login(email, password)); }
-    catch (err) { setError(err); } finally { setBusy(false); }
+    try {
+      if (supabase && joining) {
+        const token = await supabaseSignUp(supabase, email, password, name);
+        if (!token) {  // the Supabase project asks people to confirm their email first
+          setNotice(`We sent a confirmation link to ${email}. Open it, then sign in here.`);
+          setMode("signin"); setPassword(""); setConfirm("");
+          return;
+        }
+        done(await api.supabaseSession(token, name), "/verify");
+      } else if (supabase) {
+        // Demo accounts keep their local password; everyone else signs in through Supabase.
+        const demo = /@(atx\.)?ingather\.example$/i.test(email);
+        done(demo ? await api.login(email, password) : await api.supabaseSession(await supabaseSignIn(supabase, email, password)));
+      } else if (joining) done(await api.register(email, password, name), "/verify");
+      else done(await api.login(email, password));
+    } catch (err) { setError(err); } finally { setBusy(false); }
   };
 
   return (
@@ -94,15 +119,17 @@ export function Login() {
               <PasswordField label="Confirm password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required autoComplete="new-password"
                 error={pw.mismatch ? "Passwords don't match yet." : undefined} />
             )}
+            {notice && <p role="status" className="rounded-2xl bg-emerald-soft px-4 py-3 text-[14px] text-emerald-ink">{notice}</p>}
             <InlineError error={error} />
             <Button type="submit" size="lg" loading={busy} disabled={joining && !pw.ok}>{joining ? "Create account" : "Sign in"}</Button>
           </form>
           <p className="mt-5 text-center text-[14px] text-muted">
             {joining ? "Already have an account? " : "New here? "}
-            <button className="min-h-11 font-medium text-ink underline underline-offset-4" onClick={() => { setMode(joining ? "signin" : "join"); setError(null); setConfirm(""); }}>
+            <button className="min-h-11 font-medium text-ink underline underline-offset-4" onClick={() => { setMode(joining ? "signin" : "join"); setError(null); setNotice(null); setConfirm(""); }}>
               {joining ? "Sign in" : "Join"}
             </button>
           </p>
+          {supabase && <p className="mt-1 text-center text-[12.5px] text-muted">Accounts are secured with Supabase Auth.</p>}
         </section>
         <DemoAccounts onToken={done} />
         <p className="text-[12.5px] text-muted">{DISCLAIMER}</p>

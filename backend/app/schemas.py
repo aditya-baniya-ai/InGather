@@ -502,3 +502,17 @@ class JoinRequestOut(BaseModel):
     match: int | None
     status: str
     created_at: UTC
+
+
+# --- Supabase Auth --------------------------------------------------------------------------------
+class AuthConfigOut(BaseModel):
+    """Public sign-in settings for the browser (the Supabase anon key is meant to be public)."""
+
+    supabase_url: str | None
+    supabase_anon_key: str | None
+    demo_mode: bool
+
+
+class SupabaseIn(BaseModel):
+    access_token: str = Field(min_length=20, max_length=8192)
+    display_name: str | None = Field(None, max_length=60)

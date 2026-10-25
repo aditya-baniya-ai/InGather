@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import User
-from app.schemas import DemoAccountOut, DemoLoginIn, LoginIn, MeOut, MeUpdate, RegisterIn, TokenOut
+from app.schemas import AuthConfigOut, DemoAccountOut, DemoLoginIn, LoginIn, MeOut, MeUpdate, RegisterIn, SupabaseIn, TokenOut
 from app.security import Passwords, Tokens, current_user, not_found
 from app.services.policy import Policy
 from app.services.ratelimit import limiter
@@ -25,8 +25,44 @@ def by_email(db: Session, email: str) -> User | None:
     return db.scalar(select(User).where(func.lower(User.email) == email.lower()))
 
 
+@router.get("/auth/config", response_model=AuthConfigOut)
+def auth_config(s: Settings = Depends(get_settings)):
+    on = s.supabase_auth
+    return AuthConfigOut(supabase_url=s.supabase_url.rstrip("/") if on else None, supabase_anon_key=s.supabase_anon_key if on else None,
+                         demo_mode=s.demo_mode)
+
+
+@router.post("/auth/supabase", response_model=TokenOut)
+def supabase_session(body: SupabaseIn, db: Session = Depends(get_db), s: Settings = Depends(get_settings)):
+    """Exchange a Supabase Auth access token for an InGather session, creating the profile on first sign-in."""
+    from app.services.supabase_auth import InvalidSupabaseToken, verify
+
+    if not s.supabase_auth:
+        raise not_found()
+    try:
+        claims = verify(body.access_token, s)
+    except InvalidSupabaseToken:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid_credentials")
+    limiter.hit("login", claims["sub"])
+    email = str(claims["email"]).lower()
+    user = db.scalar(select(User).where(User.supabase_id == claims["sub"]))
+    if user is None:
+        if by_email(db, email):
+            # Never attach a Supabase login to an existing profile (a demo account, a local account, another Supabase
+            # user): unless the project enforces email confirmation, that would let anyone claim someone else's email.
+            raise HTTPException(status.HTTP_409_CONFLICT, "email_taken")
+        meta = claims.get("user_metadata") or {}
+        name = (body.display_name or meta.get("display_name") or meta.get("full_name") or email.split("@")[0]).strip()[:60]
+        user = User(email=email, password_hash="!supabase", display_name=name or "New member", supabase_id=claims["sub"])
+        db.add(user)
+        db.commit()
+    return token_out(user, db, s)
+
+
 @router.post("/auth/register", response_model=TokenOut)
 def register(body: RegisterIn, db: Session = Depends(get_db), s: Settings = Depends(get_settings)):
+    if s.supabase_auth:  # real people register through Supabase Auth when it's configured
+        raise HTTPException(status.HTTP_409_CONFLICT, "use_supabase")
     limiter.hit("login", body.email.lower())
     if by_email(db, body.email):
         raise HTTPException(status.HTTP_409_CONFLICT, "email_taken")

@@ -257,6 +257,9 @@ export class ApiClient {
     this.post<TokenOut>("/api/auth/register", { email, password, display_name });
   demoAccounts = () => this.get<DemoAccount[]>("/api/auth/demo-accounts");
   demoLogin = (email: string) => this.post<TokenOut>("/api/auth/demo-login", { email });
+  authConfig = () => this.get<{ supabase_url: string | null; supabase_anon_key: string | null; demo_mode: boolean }>("/api/auth/config");
+  supabaseSession = (access_token: string, display_name?: string) =>
+    this.post<TokenOut>("/api/auth/supabase", display_name ? { access_token, display_name } : { access_token });
   me = () => this.get<Me>("/api/me");
   updateMe = (patch: MePatch) => this.request<Me>("PATCH", "/api/me", patch);
 
@@ -361,6 +364,7 @@ const DETAIL_COPY: Record<string, string> = {
   invitation_expired: "This invitation has expired.",
   not_open: "This meetup is no longer open.",
   email_taken: "An account with that email already exists. Try signing in.",
+  use_supabase: "Sign-up now goes through the email sign-in above. Reload the page and try again.",
   transcription_failed: "Couldn't transcribe that. You can type instead.",
   ai_unavailable: "This AI feature is unavailable right now.",
   draft_failed: "The Intake agent couldn't draft that. Try rephrasing it, or fill the form manually.",
@@ -388,5 +392,6 @@ export function errorMessage(err: unknown): string {
     return err.detail;
   }
   if (err instanceof TypeError) return "Can't reach InGather. Check your connection and try again.";
+  if (err instanceof Error && err.name === "SupabaseAuthError") return err.message;
   return "Something went wrong.";
 }

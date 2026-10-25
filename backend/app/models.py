@@ -91,6 +91,8 @@ class User(Base):
     home_area: Mapped[str | None] = mapped_column(String(80))
     home_lat: Mapped[float | None] = mapped_column(Float)
     home_lng: Mapped[float | None] = mapped_column(Float)
+    # Supabase Auth user id (`sub`) for people who signed up through Supabase; never set for demo accounts.
+    supabase_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

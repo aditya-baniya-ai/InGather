@@ -23,7 +23,10 @@ class Passwords:
 
     @staticmethod
     def verify(password: str, hashed: str) -> bool:
-        return bcrypt.checkpw(password.encode(), hashed.encode())
+        try:
+            return bcrypt.checkpw(password.encode(), hashed.encode())
+        except ValueError:  # e.g. Supabase-only accounts, which have no local password
+            return False
 
 
 class Tokens:

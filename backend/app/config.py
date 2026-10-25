@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""  # sk_test_... enables Stripe Identity
     stripe_webhook_secret: str = ""  # whsec_... verifies Stripe webhooks
     public_base_url: str = "http://localhost:8000"  # where Stripe returns the user after verification
+    # Supabase Auth for real people's sign-up and sign-in (the app's data stays in DATABASE_URL). The anon key is public by
+    # design; the backend verifies Supabase access tokens with the project's public keys (or the legacy JWT secret).
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_jwt_secret: str = ""  # only for projects still on the legacy shared HS256 secret
     jwt_secret: str = "dev-only-secret-change-me"
     jwt_ttl_minutes: int = 60 * 24
     cors_origins: str = "http://localhost:5173,http://localhost:8000"
@@ -31,6 +36,10 @@ class Settings(BaseSettings):
     venue_search_enabled: bool = True
     media_dir: str = "./media"
     static_dir: str = "../frontend/dist"
+
+    @property
+    def supabase_auth(self) -> bool:
+        return bool(self.supabase_url and self.supabase_anon_key)
 
     @property
     def ai_live(self) -> bool:

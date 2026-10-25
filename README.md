@@ -31,6 +31,20 @@ To reset the demo data: `docker compose down -v && docker compose up`.
 
 Matching never needs `MODEL_API_KEY`: it runs on the server's own model and costs no tokens. The key turns on the Muse features below, which work before and after matching.
 
+### Sign in with Supabase Auth (real people)
+
+Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `.env` (Supabase > Project Settings > API), then restart. Real people then sign up and sign in through Supabase:
+1. The sign-in page sends their email and password to Supabase.
+2. The backend checks Supabase's token against the project's public keys.
+3. The backend creates their InGather profile in the app database the first time they sign in.
+
+Nothing else changes:
+- Plans, groups, the feed and the 1,000 demo residents stay in the app's own database. Nothing needs migrating.
+- "Continue as Alice" and the other demo logins work as before. The demo people never get Supabase accounts.
+- An existing InGather profile is never attached to a Supabase login, so nobody can claim someone else's email.
+
+In Supabase > Authentication > URL Configuration, set the Site URL to where the app runs (e.g. `http://localhost:8000`). If **Confirm email** is on, new people get a confirmation link and sign in after opening it.
+
 ### Use Supabase Postgres
 
 The default Compose setup starts a local Postgres container. To use a Supabase
