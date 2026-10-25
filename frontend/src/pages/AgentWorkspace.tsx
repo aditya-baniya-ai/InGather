@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, ImagePlus, Lock, Pause, Play, Sparkles } from "lucide-react";
 import { AppShell } from "../components/AppShell";
-import { AgentTimeline } from "../components/AgentTimeline";
+import { RunStatus } from "../components/RunStatus";
 import { Cover } from "../components/Brand";
 import { CandidateList } from "../components/CandidateList";
 import { PublicLocation } from "../components/PublicLocation";
@@ -167,14 +167,11 @@ export function AgentWorkspace() {
 
         {run.isError && !(run.error instanceof ApiError && run.error.status === 404) && <div className="mt-5"><ErrorState error={run.error} onRetry={() => run.refetch()} what="agent activity" /></div>}
         {run.data && (
-          <div className="mt-6 border-t border-line pt-5">
-            <AgentTimeline run={run.data} tz={p.timezone} onRetry={start} />
-            {run.data.summary && run.data.status === "completed" && !run.data.events.some((e) => e.summary === run.data!.summary) && (
-              <p className="rise mt-5 rounded-2xl bg-violet-soft/70 px-4 py-3 text-[15px] leading-relaxed">{run.data.summary}</p>
-            )}
+          <div className="mt-5">
+            <RunStatus run={run.data} onRetry={start} />
           </div>
         )}
-        {run.isPending && run.fetchStatus === "fetching" && <div className="mt-6"><LoadingBlock label="Loading agent activity" rows={2} /></div>}
+        {run.isPending && run.fetchStatus === "fetching" && <div className="mt-6"><LoadingBlock label="Loading" rows={1} /></div>}
       </Panel>
 
       <section className="mt-6" aria-labelledby="people-title">

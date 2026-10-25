@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { EyeOff } from "lucide-react";
 import { AppShell } from "../components/AppShell";
-import { AgentTimeline } from "../components/AgentTimeline";
+import { RunStatus } from "../components/RunStatus";
 import { GatherChat } from "../components/GatherChat";
 import { ProposalView } from "../components/ProposalView";
 import { ErrorState, LoadingBlock } from "../components/ui";
@@ -14,15 +14,10 @@ function OwnerAgentPanel({ proposal, inline }: { proposal: Proposal; inline?: bo
   const plan = usePlan(proposal.plan_id, 4000);
   const { run, follow } = useFollowRun(proposal.plan_id, plan.data?.latest_run_id);
   const retry = () => api.replan(proposal.id, null).then(follow, () => run.refetch());
-  const activity = run.data && (
-    <div className="rounded-[20px] border border-line bg-surface p-5">
-      <h2 className="mb-3 text-[15px] font-semibold">Agent activity</h2>
-      <AgentTimeline run={run.data} tz={proposal.timezone} onRetry={retry} />
-    </div>
-  );
-  // Below xl the right rail is hidden: surface the agent inline while it is actually working.
-  if (inline) return run.data?.status === "running" && proposal.status !== "confirmed" ? <div className="mb-4 xl:hidden">{activity}</div> : null;
-  return proposal.status === "confirmed" ? null : activity || null;
+  // Only worth showing while a search runs (e.g. after a decline) or if it stopped; never once confirmed.
+  if (!run.data || proposal.status === "confirmed" || !["running", "failed"].includes(run.data.status)) return null;
+  const status = <RunStatus run={run.data} onRetry={retry} />;
+  return inline ? <div className="mb-4 xl:hidden">{status}</div> : status;
 }
 
 export function NotAvailable() {
