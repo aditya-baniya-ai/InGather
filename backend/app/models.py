@@ -173,6 +173,7 @@ class Proposal(Base):
     icebreaker: Mapped[str | None] = mapped_column(String(280))
     # Owner opted in to people asking to join from their Home feed (only while the group has open spots).
     open_to_requests: Mapped[bool] = mapped_column(default=False)
+    cover_image_url: Mapped[str | None] = mapped_column(String(500))  # scene-agent photo of this group's activity (/media/...)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 

@@ -200,7 +200,7 @@ class Feed:
             group_size=len(roster), spots_left=self.spots_left(proposal, plan), group_interests=group_interests,
             shared_interests=shared[:5], match=round(fit * 100), reason="; ".join(bits),
             free_then=free_then, request_status=req.status.value if req else None,
-            welcome=req.welcome if req and req.status == JoinStatus.accepted else None,
+            welcome=req.welcome if req and req.status == JoinStatus.accepted else None, cover_url=proposal.cover_image_url,
         )
 
     @staticmethod

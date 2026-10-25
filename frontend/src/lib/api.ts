@@ -136,7 +136,7 @@ export interface Proposal {
 /** A group I host or joined (Home, "Your groups"). */
 export interface GroupSummary {
   proposal_id: string; activity_title: string; activity_type: string; city: string; date: string | null; status: string;
-  role: "host" | "member"; host_name: string; members: { first_name: string; avatar_url: string | null }[];
+  role: "host" | "member"; host_name: string; members: { first_name: string; avatar_url: string | null }[]; cover_url?: string | null;
 }
 export interface Invitation {
   proposal_id: string;
@@ -190,6 +190,7 @@ export interface FeedItem {
   venue_kind: string; preview: string | null; host: FeedPerson; members: FeedPerson[]; group_size: number; spots_left: number;
   group_interests: string[]; shared_interests: string[]; match: number; reason: string; free_then: boolean | null;
   request_status: "pending" | "accepted" | "declined" | "withdrawn" | null; welcome: string | null;
+  cover_url?: string | null; // scene-agent photo of this group (null until drawn: category photo)
 }
 export interface JoinRequest { id: string; user_id: string; display_name: string; avatar_url: string | null; bio: string | null; interests: string[]; message: string | null; match: number | null; status: string; created_at: string }
 

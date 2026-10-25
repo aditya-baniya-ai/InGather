@@ -89,8 +89,8 @@ export function FeedCard({ item }: { item: FeedItem }) {
         {/* The whole photo, uncropped (3:2): on top in a narrow card, beside the text once the card is wide enough. */}
         <div className={cx("relative overflow-hidden bg-[var(--cat-soft)] @4xl:flex @4xl:items-center", `cat-${item.activity_type}`)}>
           {/* A soft, blurred copy fills the space above and below the photo when the text side is taller. */}
-          <Cover activity={item.activity_type} city={item.city} className="absolute inset-0 hidden size-full scale-125 opacity-70 blur-2xl @4xl:block" />
-          <Cover activity={item.activity_type} city={item.city} className="relative block aspect-[3/2] w-full" />
+          <Cover activity={item.activity_type} city={item.city} src={item.cover_url} className="absolute inset-0 hidden size-full scale-125 opacity-70 blur-2xl @4xl:block" />
+          <Cover activity={item.activity_type} city={item.city} src={item.cover_url} label={item.cover_url ? `Photo of ${item.title}` : undefined} className="relative block aspect-[3/2] w-full" />
           <span className="cat-pill absolute top-3 left-3 rounded-full px-2.5 py-1 text-[12px] font-semibold shadow-sm">{category}</span>
         </div>
         <div className="flex min-w-0 flex-col p-4 sm:p-5">

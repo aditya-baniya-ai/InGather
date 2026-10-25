@@ -12,6 +12,7 @@ from app.db import get_db
 from app.models import User
 from app.schemas import ActivityType, FeedItemOut, JoinDraftOut, JoinIn, JoinRequestOut, OpenIn
 from app.security import current_user, not_found
+from app.services import covers
 from app.services.feed import Feed, auto_respond
 from app.services.policy import Policy
 from app.services.ratelimit import limiter
@@ -25,9 +26,12 @@ def feed(db: Session = Depends(get_db), s: Settings = Depends(get_settings)) -> 
 
 
 @router.get("/feed", response_model=list[FeedItemOut])
-def home_feed(sort: Literal["match", "soonest"] = "match", activity: ActivityType | None = None,
+def home_feed(background: BackgroundTasks, sort: Literal["match", "soonest"] = "match", activity: ActivityType | None = None,
               user: User = Depends(current_user), svc: Feed = Depends(feed)):
-    return svc.items(user, sort=sort, activity=activity)
+    items = svc.items(user, sort=sort, activity=activity)
+    if todo := covers.missing(items):  # the scene agent draws the first few groups that still show a category photo
+        background.add_task(covers.cover_in_background, todo)
+    return items
 
 
 def _item(svc: Feed, user: User, proposal_id: UUID) -> FeedItemOut:

@@ -95,7 +95,12 @@ def invitations(ctx: Ctx = Depends()):
 @router.get("/groups", response_model=list[GroupOut])
 def my_groups(ctx: Ctx = Depends()):
     """Groups I host or have joined (invitations still waiting for an answer stay on /invitations)."""
-    return ctx.proposals.groups(ctx.user)
+    from app.services import covers
+
+    groups = ctx.proposals.groups(ctx.user)
+    if todo := covers.missing(groups):
+        ctx.background.add_task(covers.cover_in_background, todo)
+    return groups
 
 
 @router.post("/proposals/{proposal_id}/respond", response_model=ProposalOut)

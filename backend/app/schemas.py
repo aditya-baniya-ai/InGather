@@ -345,6 +345,7 @@ class GroupOut(BaseModel):
     role: Literal["host", "member"]
     host_name: str
     members: list[GroupPersonOut]  # everyone accepted, host first
+    cover_url: str | None = None
 
 
 class MessageIn(BaseModel):
@@ -568,6 +569,7 @@ class FeedItemOut(BaseModel):
     free_then: bool | None  # None when the viewer has no plan in that city
     request_status: Literal["pending", "accepted", "declined", "withdrawn"] | None
     welcome: str | None  # Muse-written note once accepted
+    cover_url: str | None = None  # scene-agent photo of this group; None until drawn (UI shows the category photo)
 
 
 class JoinIn(BaseModel):

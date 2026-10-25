@@ -357,6 +357,7 @@ class Proposals:
                 date=self._local_date(p, plan), status=p.status, role="host" if m.is_initiator else "member",
                 host_name=host.user.display_name,
                 members=[GroupPersonOut(first_name=x.user.display_name.split(" ")[0], avatar_url=x.user.avatar_url) for x in people],
+                cover_url=p.cover_image_url,
             ))
         return out
 

@@ -32,7 +32,7 @@ function YourGroups() {
         {groups.data.map((g: GroupSummary) => (
           <li key={g.proposal_id}>
             <Link to={`/proposals/${g.proposal_id}`} className="press lift card flex min-h-24 items-center gap-3 p-3">
-              <span className="size-16 shrink-0 overflow-hidden rounded-xl"><Cover activity={g.activity_type} city={g.city} className="size-full" /></span>
+              <span className="size-16 shrink-0 overflow-hidden rounded-xl"><Cover activity={g.activity_type} city={g.city} src={g.cover_url} className="size-full" /></span>
               <span className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="truncate text-[15px] font-semibold">{g.activity_title}</span>
                 <span className="truncate text-[12.5px] text-muted">{[g.city, dayLabel(g.date), g.role === "host" ? "You're hosting" : `Hosted by ${g.host_name.split(" ")[0]}`].filter(Boolean).join(" · ")}</span>
