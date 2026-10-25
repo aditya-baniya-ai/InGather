@@ -61,7 +61,7 @@ export function Home() {
       : "Tell your agent what you'd like to do. It stays private.";
 
   return (
-    <AppShell>
+    <AppShell wide>
       <header className="mb-6">
         <h1 className="page-title">{greeting()}, <span className="ig-text">{first}.</span></h1>
         <p className="mt-1 text-[16px] text-muted">{fact}</p>

@@ -34,7 +34,9 @@ function Badge({ n }: { n: number }) {
   return <span className="num grid min-w-5 h-5 place-items-center rounded-full ig-grad px-1.5 text-[11.5px] font-semibold text-white" aria-label={`${n} new`}>{n}</span>;
 }
 
-export function AppShell({ children, aside, chatAside = false }: { children: ReactNode; aside?: ReactNode; chatAside?: boolean }) {
+/** `wide` gives the page a wider column (the Home feed). When the chat panel is open on a wide screen, the content
+ *  slides left to make room for it (see `html[data-chat-open]` in index.css). */
+export function AppShell({ children, aside, chatAside = false, wide = false }: { children: ReactNode; aside?: ReactNode; chatAside?: boolean; wide?: boolean }) {
   const invites = useInviteCount();
   const { pathname } = useLocation();
   const activePath = pathname.startsWith("/plans/") ? "/home" : pathname.startsWith("/proposals/") ? "/invitations" : pathname;
@@ -82,8 +84,8 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
         </div>
       </header>
 
-      <div className="flex min-w-0 flex-1 justify-center gap-8 px-4 md:px-8">
-        <main id="main" className="w-full max-w-[680px] min-w-0 pt-5 pb-28 md:pt-10 md:pb-12">
+      <div className="shell-content flex min-w-0 flex-1 justify-center gap-8 px-4 md:px-8">
+        <main id="main" className={cx("w-full min-w-0 pt-5 pb-28 md:pt-10 md:pb-12", wide ? "max-w-[1040px]" : "max-w-[680px]")}>
           {children}
           <footer className="mt-16 text-[12.5px] leading-relaxed text-muted">{DISCLAIMER}</footer>
         </main>

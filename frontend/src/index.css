@@ -228,3 +228,15 @@ html[data-theme="dark"] .group-map .leaflet-tile-pane { filter: invert(1) hue-ro
 .group-map .leaflet-control-attribution a { color: var(--color-muted); }
 .group-map .leaflet-bar a { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-line); }
 .group-map { z-index: 0; }
+
+/* Chat panel: slides in from the right; on wide screens the page content moves left to make room. */
+.chat-slide { animation: chat-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes chat-in { from { opacity: 0; transform: translateX(24px); } }
+.shell-content { transition: padding-right 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+@media (min-width: 1024px) {
+  html[data-chat-open] .shell-content { padding-right: 452px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-slide { animation: none; }
+  .shell-content { transition: none; }
+}

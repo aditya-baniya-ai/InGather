@@ -84,13 +84,13 @@ export function FeedCard({ item }: { item: FeedItem }) {
   const shared = new Set(item.shared_interests.map((i) => i.toLowerCase()));
   const category = CATEGORIES.find((c) => c.activity === item.activity_type)?.label ?? "Plans";
   return (
-    <article className="post" aria-labelledby={`feed-${item.proposal_id}`}>
-      <div className="post-inner sm:grid sm:grid-cols-[minmax(0,220px)_1fr]">
-        {/* The whole photo: 4:5 on phones (like a post), its natural 2:3 beside the text on wider screens. */}
-        <div className={cx("relative overflow-hidden bg-[var(--cat-soft)]", `cat-${item.activity_type}`)}>
-          {/* A soft, blurred copy fills any space below the photo when the text side is taller. */}
-          <Cover activity={item.activity_type} city={item.city} className="absolute inset-0 hidden size-full scale-125 opacity-70 blur-2xl sm:block" />
-          <Cover activity={item.activity_type} city={item.city} className="relative block aspect-[4/5] w-full sm:aspect-[2/3]" />
+    <article className="post @container" aria-labelledby={`feed-${item.proposal_id}`}>
+      <div className="post-inner @4xl:grid @4xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+        {/* The whole photo, uncropped (3:2): on top in a narrow card, beside the text once the card is wide enough. */}
+        <div className={cx("relative overflow-hidden bg-[var(--cat-soft)] @4xl:flex @4xl:items-center", `cat-${item.activity_type}`)}>
+          {/* A soft, blurred copy fills the space above and below the photo when the text side is taller. */}
+          <Cover activity={item.activity_type} city={item.city} className="absolute inset-0 hidden size-full scale-125 opacity-70 blur-2xl @4xl:block" />
+          <Cover activity={item.activity_type} city={item.city} className="relative block aspect-[3/2] w-full" />
           <span className="cat-pill absolute top-3 left-3 rounded-full px-2.5 py-1 text-[12px] font-semibold shadow-sm">{category}</span>
         </div>
         <div className="flex min-w-0 flex-col p-4 sm:p-5">
