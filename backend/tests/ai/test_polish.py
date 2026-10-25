@@ -24,3 +24,10 @@ def test_icebreaker_uses_muse_answer_and_rejects_bad_ones(monkeypatch):
     assert icebreaker.write_icebreaker(s, "Coffee", "cafe", ["coffee"], "T?") == "Which Philly coffee spot should we try next?"
     monkeypatch.setattr(icebreaker, "MuseClient", lambda _s: client("Not a question"))
     assert icebreaker.write_icebreaker(s, "Coffee", "cafe", ["coffee"], "T?") == "T?"
+
+
+def test_icebreaker_uses_interests_most_of_the_group_shares():
+    from app.services.proposals import common_interests
+    groups = [["tech", "food", "coffee"], ["tech", "food"], ["tech", "museums"], ["coffee", "city exploring"]]
+    assert common_interests(groups) == ["tech", "coffee", "food"]
+    assert common_interests([["a"], ["b"]]) == []

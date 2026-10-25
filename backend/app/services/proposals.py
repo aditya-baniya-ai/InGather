@@ -1,6 +1,7 @@
 """Proposal/invitation state machine. The agent can only *suggest*; every invitation, acceptance and final
 confirmation is an explicit human action recorded here."""
 
+from collections import Counter
 from datetime import datetime, timedelta
 from typing import get_args
 from uuid import UUID
@@ -254,7 +255,7 @@ class Proposals:
                 from app.ai.icebreaker import write_icebreaker
 
                 people = [m.user for m in proposal.members if m.status in ROSTER and m.status != MemberStatus.invited]
-                shared = sorted(set.intersection(*(set(u.interests or []) for u in people))) if people else []
+                shared = common_interests([u.interests or [] for u in people])
                 proposal.icebreaker = write_icebreaker(
                     self.settings, proposal.activity_title, proposal.venue_category, shared, proposal.icebreaker or ""
                 ) or None
@@ -437,3 +438,10 @@ class Proposals:
                 return s, e
         ws, we = next(w for w in availability.windows if minutes([w]) >= 60)
         return ws, min(we, ws + DEFAULT_SLOT)
+
+
+def common_interests(groups: list[list[str]]) -> list[str]:
+    """Interests at least half the group (and two people) share, most common first."""
+    counts = Counter(i for g in groups for i in set(g))
+    need = max(2, (len(groups) + 1) // 2)
+    return [i for i, n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])) if n >= need]
