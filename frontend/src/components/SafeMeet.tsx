@@ -150,18 +150,6 @@ export function SafeMeet({ p }: { p: Proposal }) {
       )}
       {!confirmed && p.i_confirmed && <p className="mt-5 text-[14.5px] text-muted">You've confirmed. Waiting for everyone else; nothing is final until all confirm.</p>}
 
-      <div className="mt-6 rounded-2xl bg-emerald-soft/60 p-4">
-        <h3 className="text-[15px] font-semibold text-emerald-ink">Before you go</h3>
-        <ul className="mt-2 grid gap-1.5 text-[14px]">
-          <li>Meet only at the public place above.</li>
-          <li>Arrange your own way there and back.</li>
-          <li>Don't share your home, hotel or phone number.</li>
-          <li>Tell someone you trust where you'll be.</li>
-          <li>Leave if anything feels off.</li>
-        </ul>
-        <p className="mt-2 text-[13px] text-muted">InGather doesn't monitor meetups or provide emergency response.</p>
-      </div>
-
       <div className="mt-5 flex flex-wrap gap-2">
         <Button variant="secondary" onClick={async () => setShareNote(await shareDetails(p))} icon={<Share2 className="size-4" aria-hidden />}>Share with trusted contact</Button>
         {confirmed && (
