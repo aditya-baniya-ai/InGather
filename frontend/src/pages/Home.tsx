@@ -62,7 +62,7 @@ export function Home() {
   return (
     <AppShell>
       <header className="mb-6">
-        <h1 className="font-display text-[36px] leading-[1.05] tracking-[-0.01em] sm:text-[44px]">{greeting()}, <span className="ig-text">{first}.</span></h1>
+        <h1 className="page-title">{greeting()}, <span className="ig-text">{first}.</span></h1>
         <p className="mt-1 text-[16px] text-muted">{fact}</p>
       </header>
 

@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { VenueMap } from "./VenueMap";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { CalendarClock, Check, MapPin, MessageCircle, Share2 } from "lucide-react";
@@ -12,7 +14,7 @@ export const participantsOf = (p: Proposal): Member[] => p.members.filter((m) =>
 export function VenueTime({ p }: { p: Proposal }) {
   const cat = VENUE_CATEGORIES.find((c) => c.value === p.venue_category)?.label;
   return (
-    <dl className="grid gap-3 sm:grid-cols-2">
+    <div className="flex flex-col gap-4"><dl className="grid gap-3 sm:grid-cols-2">
       <div className="flex gap-3 rounded-2xl bg-violet-soft p-4">
         <CalendarClock className="mt-0.5 size-5 shrink-0 text-violet-ink" aria-hidden />
         <div><dt className="text-[13px] text-muted">When</dt><dd className="font-medium">{formatDateTime(p.start_at, p.timezone)}</dd></div>
@@ -25,7 +27,7 @@ export function VenueTime({ p }: { p: Proposal }) {
           <dd className="text-[13px] text-muted">{[cat, p.city].filter(Boolean).join(" · ")}{!p.venue_verified && " · suggestion, not a booking"}</dd>
         </div>
       </div>
-    </dl>
+    </dl><VenueMap p={p} /></div>
   );
 }
 
@@ -36,6 +38,8 @@ export function FinalizeForm({ p, onDone }: { p: Proposal; onDone?: () => void }
   const [end, setEnd] = useState(toLocal(p.end_at));
   const [venue, setVenue] = useState(p.venue_label ?? "");
   const [category, setCategory] = useState(p.venue_category ?? "cafe");
+  const [placeId, setPlaceId] = useState("");
+  const places = useQuery({ queryKey: ["nearby", p.plan_id], queryFn: () => api.nearbyPlaces(p.plan_id), enabled: false, retry: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const toUtc = (v: string) => (v ? localToUtcIso(v.slice(0, 10), v.slice(11, 16), p.timezone) : undefined);
@@ -44,7 +48,7 @@ export function FinalizeForm({ p, onDone }: { p: Proposal; onDone?: () => void }
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      setProposal(await api.finalize(p.id, { start_at: toUtc(start), end_at: toUtc(end), venue_label: venue || undefined, venue_category: category }));
+      setProposal(await api.finalize(p.id, { start_at: toUtc(start), end_at: toUtc(end), venue_label: venue || undefined, venue_category: category, venue_place_id: placeId || undefined }));
       onDone?.();
     } catch (err) { setError(err); } finally { setBusy(false); }
   };
@@ -54,8 +58,19 @@ export function FinalizeForm({ p, onDone }: { p: Proposal; onDone?: () => void }
         <TextField label="Starts" type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} required hint={`Local time in ${p.timezone.replace("_", " ")}`} />
         <TextField label="Ends" type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} />
       </div>
-      <TextField label="Public venue" value={venue} onChange={(e) => setVenue(e.target.value)} maxLength={160} placeholder="A public café near the convention center" required />
-      <SelectField label="Kind of place" value={category} onChange={(e) => setCategory(e.target.value)} options={VENUE_CATEGORIES} />
+      <div className="rounded-2xl bg-violet-soft/50 p-4">
+        <p className="font-semibold text-[14px]">Choose a place near your event</p>
+        <p className="mt-1 text-[13px] text-muted">Uses the public event location saved on your plan. Search results are within 1.5 km, sorted by straight-line distance.</p>
+        <Button type="button" variant="secondary" size="sm" className="mt-3" loading={places.isFetching} onClick={() => places.refetch()}>Find nearby cafés and restaurants</Button>
+        {places.data && <><p role="status" className="mt-3 text-[13px] text-muted">{places.data.message}</p>
+          {places.data.places.length > 0 && <div className="mt-3 flex flex-col gap-2">{places.data.places.map(place => <label key={place.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line bg-surface p-3 text-[14px]">
+            <input type="radio" name="venue-place" checked={placeId === place.id} onChange={() => { setPlaceId(place.id); setVenue(place.name); setCategory(place.category); }} className="mt-1 accent-[var(--color-violet)]" />
+            <span><span className="font-semibold">{place.name}</span><span className="block text-[12.5px] text-muted">{place.address || p.city} · {place.distance_m} m away</span></span>
+          </label>)}</div>}</>}
+        <InlineError error={places.error} />
+      </div>
+      <TextField label="Public venue" value={venue} onChange={(e) => { setVenue(e.target.value); setPlaceId(""); }} maxLength={160} placeholder="A public café near the convention center" required />
+      <SelectField label="Kind of place" value={category} onChange={(e) => { setCategory(e.target.value); setPlaceId(""); }} options={VENUE_CATEGORIES} />
       <p className="text-[13.5px] text-muted">Everyone, including you, confirms these exact details again. Changing them later asks for fresh confirmations.</p>
       <InlineError error={error} />
       <div><Button type="submit" loading={busy}>Send final details for confirmation</Button></div>
@@ -91,7 +106,7 @@ export function SafeMeet({ p }: { p: Proposal }) {
   return (
     <Panel className="p-5 sm:p-6" aria-labelledby="safemeet-title">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="safemeet-title" className="text-[17px] font-semibold">SafeMeet confirmation</h2>
+        <h2 id="safemeet-title" className="section-title">SafeMeet confirmation</h2>
         <Pill tone={confirmed ? "emerald" : "amber"}>
           {confirmed ? <Check className="size-3.5" aria-hidden /> : null}
           Confirmed by <span className="num">{confirmedCount}</span> of <span className="num">{people.length}</span> {people.length === 1 ? "person" : "people"}
@@ -100,7 +115,7 @@ export function SafeMeet({ p }: { p: Proposal }) {
       {confirmed && (
         <div className="rise relative mt-4">
           <Burst />
-          <p className="font-display text-[34px] leading-[1.05] tracking-[-0.01em]"><span className="ig-text">You're all in.</span></p>
+          <p className="page-title"><span className="ig-text">You're all in.</span></p>
           <p className="mt-2 max-w-prose text-[15px]">Meet in a public place, arrange your own transportation, and share details only with people you choose.</p>
         </div>
       )}

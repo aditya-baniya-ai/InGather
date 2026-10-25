@@ -209,6 +209,8 @@ class Conductor:
         return {
             "activity_type": plan.activity_type, "title": plan.title, "city": plan.city, "intent": plan.intent,
             "owner_interests": list(plan.interests or []), "shared_interests": shared,
+            "public_location": plan.public_location,
+            "nearby_places": toolbox.nearby_places(),
             "dates": f"{plan.start_date.isoformat()} to {plan.end_date.isoformat()}",
             "group_size": {"min": plan.group_min, "max": plan.group_max},
         }
@@ -225,6 +227,7 @@ class Conductor:
             "matchmaker": shortlist.get("shortlist"),
             "scheduler": {**{k: schedule.get(k) for k in ("candidate_ids", "start_at", "end_at")}, "local_time": label},
             "planner": {k: design.get(k) for k in ("activity_title", "venue_category", "venue_label", "icebreaker", "explanation")},
+            "nearby_places": toolbox.nearby_places(),
             "automated_checks": checks,
         }
 

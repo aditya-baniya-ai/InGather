@@ -68,3 +68,12 @@ def set_discovery(
 def delete_plan(plan_id: UUID, user: User = Depends(current_user), svc: Plans = Depends(plans), pol: Policy = Depends(policy)):
     svc.cancel(pol.own_plan(user, plan_id))
     return Response(status_code=204)
+
+
+@router.get("/{plan_id}/nearby")
+def nearby_places(plan_id: UUID, user: User = Depends(current_user), svc: Plans = Depends(plans), pol: Policy = Depends(policy)):
+    from app.services.places import nearby
+    from app.services.ratelimit import limiter
+    plan = pol.own_plan(user, plan_id)
+    limiter.hit("place_lookup", user.id)
+    return nearby(plan.public_location, plan.city, svc.settings.venue_search_enabled)

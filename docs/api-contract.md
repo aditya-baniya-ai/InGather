@@ -30,11 +30,12 @@ IANA `timezone`. IDs are UUID strings.
 | POST | /api/plans | `PlanIn` | `PlanOut` (201) |
 | GET | /api/plans | – | `[PlanOut]` mine only, newest first |
 | GET | /api/plans/{id} | – | `PlanOut` (404 if not owner) |
+| GET | /api/plans/{id}/nearby | – | `{status, message, places[], origin?}` — owner only; public-event lookup, rate limited |
 | PATCH | /api/plans/{id} | partial `PlanIn` | `PlanOut` |
 | POST | /api/plans/{id}/discovery | `{mode: "private_browse"|"mutual_discovery"|"paused", ai_consent?: bool}` | `PlanOut` (writes ConsentEvent) |
 | DELETE | /api/plans/{id} | – | 204; status→cancelled, open proposals cancelled |
 
-`PlanIn = {activity_type, title, goal_text, city, timezone, start_date, end_date, intent, interests[], group_min(2-4), group_max(2-4), group_only, preview_text?, windows: [{starts_at, ends_at}]}`
+`PlanIn = {activity_type, title, goal_text, city, public_location?, timezone, start_date, end_date, intent, interests[], group_min(2-4), group_max(2-4), group_only, preview_text?, windows: [{starts_at, ends_at}]}`
 Validation: end_date ≥ start_date, ends_at > starts_at, 2 ≤ group_min ≤ group_max ≤ 4.
 
 `PlanOut = PlanIn + {id, discovery_mode, status, cover_image_url, ai_consent: bool, created_at, latest_proposal_id|null, latest_run_id|null}`
@@ -58,7 +59,7 @@ Validation: end_date ≥ start_date, ends_at > starts_at, 2 ≤ group_min ≤ gr
 | POST | /api/proposals/{id}/approve-invitations | `{version, user_ids[]}` | `ProposalOut` — owner only; user_ids ⊆ current `suggested` members and version must match, else 409 |
 | GET | /api/invitations | – | `[InvitationOut]` invitations addressed to me |
 | POST | /api/proposals/{id}/respond | `{accept: bool}` | `ProposalOut` — invited member only; decline enqueues outbox `invitation_declined` → replan run |
-| POST | /api/proposals/{id}/finalize | `{start_at?, end_at?, venue_label?, venue_category?}` | `ProposalOut` — owner; requires ≥1 accepted and no invites pending; bumps version, status→awaiting_final, clears confirmations |
+| POST | /api/proposals/{id}/finalize | `{start_at?, end_at?, venue_label?, venue_category?, venue_place_id?}` | `ProposalOut` — owner; requires ≥1 accepted and no invites pending; bumps version, status→awaiting_final, clears confirmations |
 | POST | /api/proposals/{id}/confirm | `{version}` | `ProposalOut` — owner or accepted member; when all confirmed for current version → `confirmed` (+ agent icebreaker message) |
 | POST | /api/proposals/{id}/leave | – | `ProposalOut`/204 — member leaves; owner leaving = cancel |
 | GET | /api/proposals/{id}/messages | – | `[MessageOut]` — confirmed proposals, current participants only |
@@ -170,3 +171,9 @@ Separate Muse Spark agents, each with its own instructions and an allowlisted su
 Offline (no key): each agent has a deterministic fallback; reviewer runs deterministic checks; events still labeled "Rules-based".
 
 `RunOut.events[]` gains `agent: "orchestrator"|"matchmaker"|"scheduler"|"planner"|"reviewer"|null` and kind `"review"` for reviewer verdicts (summary starts with "Approved:" or "Sent back to <agent>:"). Existing event semantics (kind=tool only for real executions) unchanged.
+
+### Public-event venue lookup
+
+`public_location` is an optional owner-private public event venue/address (max 200 characters). Lookup sends only that value and city to Nominatim, then public coordinates to Overpass. `places` contains `{id, name, category, latitude, longitude, address, distance_m, source}` within 1.5 km, sorted by straight-line distance. A provider failure returns `status=unavailable` and an empty list. Successful lookups are cached for 30 minutes.
+
+`venue_place_id` must match a server-returned place for this plan. Selection stores `ProposalOut.venue_details` with the chosen meetup coordinates, never the event origin. It follows venue disclosure: owner, then accepted members during final confirmation/confirmed states. Manual venue changes clear the old coordinates. A map listing does not set `venue_verified` or imply a booking.

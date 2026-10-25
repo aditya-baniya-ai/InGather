@@ -13,7 +13,7 @@ function Section({ title, description, children, id }: { title: string; descript
   return (
     <section aria-labelledby={id} className="grid gap-3 py-6 md:grid-cols-[200px_1fr] md:gap-6">
       <div>
-        <h2 id={id} className="text-[16px] font-semibold">{title}</h2>
+        <h2 id={id} className="section-title">{title}</h2>
         {description && <p className="mt-1 text-[13.5px] text-muted">{description}</p>}
       </div>
       <div className="min-w-0">{children}</div>
@@ -91,7 +91,7 @@ export function Profile() {
       <header className="flex items-center gap-4 pb-2">
         <Avatar name={me.display_name} src={me.avatar_url} size={72} ring />
         <div className="min-w-0">
-          <h1 className="truncate text-[26px] font-semibold leading-tight">{me.display_name}</h1>
+          <h1 className="page-title break-words">{me.display_name}</h1>
           <div className="mt-1 flex flex-wrap gap-2">
             {me.is_demo || me.verification === "verified_demo" ? <Pill tone="amber">Demo account · verification simulated — no ID checked</Pill>
               : me.verification === "verified_live" ? <Pill tone={ver.data?.stripe_test_mode ? "amber" : "emerald"}>{verificationCopy("verified_live", ver.data?.stripe_test_mode).label}</Pill>

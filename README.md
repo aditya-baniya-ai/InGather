@@ -69,6 +69,12 @@ npm test && npm run build
 
 Layout: `backend/app/{api,services,ai}` (FastAPI routers, domain services, Muse integrations), `backend/migrations` (Alembic), `frontend/src/{pages,components,lib}`. Binding API: [docs/api-contract.md](docs/api-contract.md). Product spec: [INGATHER_CLAUDE_CODE_BUILD_SPEC.md](INGATHER_CLAUDE_CODE_BUILD_SPEC.md).
 
+## Meetup maps and group chat
+
+Add a public conference venue or street address in the plan or Gather Agent workspace. The server geocodes that location and searches OpenStreetMap for public cafés, restaurants, food halls and libraries within 1.5 km, sorted by straight-line distance. Only that public location and city go to the map providers. Results are cached for 30 minutes; set `VENUE_SEARCH_ENABLED=false` to disable lookup. Public providers may be unavailable, in which case the UI offers manual venue entry without inventing a map pin.
+
+The organizer can choose a mapped place before final confirmation. Its map is shared with accepted participants during confirmation and remains available in chat. Changing the place resets confirmations. Once everyone confirms, the group chat appears automatically on the right on desktop and inline on smaller screens, with sender names and avatars. Messages refresh every three seconds.
+
 ## Deploy
 
 The `Dockerfile` builds one image that serves both the React app and the API on `$PORT` (default 8000). Deploy it to any container host (Render, Fly.io, Railway, Cloud Run) with a managed Postgres and these settings:

@@ -97,6 +97,7 @@ class Plan(Base):
     title: Mapped[str] = mapped_column(String(120))
     goal_text: Mapped[str] = mapped_column(Text)  # PRIVATE
     city: Mapped[str] = mapped_column(String(80), index=True)
+    public_location: Mapped[str | None] = mapped_column(String(200))  # owner-supplied public event venue; private plan context
     timezone: Mapped[str] = mapped_column(String(64))  # IANA, e.g. America/New_York
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date] = mapped_column(Date)
@@ -150,6 +151,7 @@ class Proposal(Base):
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     venue_label: Mapped[str] = mapped_column(String(160), default="A public café near the venue")
     venue_category: Mapped[str] = mapped_column(String(40), default="cafe")  # always a public category
+    venue_details: Mapped[dict | None] = mapped_column(JSON)  # provider-sourced meetup coordinates, never event origin
     venue_verified: Mapped[bool] = mapped_column(default=False)  # False = generic suggestion, not a real booking
     icebreaker: Mapped[str | None] = mapped_column(String(280))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

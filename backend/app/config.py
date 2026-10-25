@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     jwt_ttl_minutes: int = 60 * 24
     cors_origins: str = "http://localhost:5173,http://localhost:8000"
     database_url: str = "sqlite:///./ingather.db"
+    venue_search_enabled: bool = True
     media_dir: str = "./media"
     static_dir: str = "../frontend/dist"
 

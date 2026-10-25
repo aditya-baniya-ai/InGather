@@ -56,6 +56,7 @@ class Proposals:
         venue_label: str,
         venue_category: str,
         icebreaker: str | None,
+        venue_details: dict | None = None,
     ) -> Proposal:
         ids = [UUID(str(uid)) for uid, _ in picks]
         if not ids or len(set(ids)) != len(ids):
@@ -85,6 +86,7 @@ class Proposals:
         proposal.explanation = explanation
         proposal.venue_label = (venue_label or "A public café near the venue")[:160]
         proposal.venue_category = venue_category if venue_category in get_args(VenueCategory) else "cafe"
+        proposal.venue_details = venue_details
         proposal.venue_verified = False
         proposal.icebreaker = icebreaker[:280] if icebreaker else None
         for uid, reason in picks:
@@ -164,8 +166,24 @@ class Proposals:
             raise conflict("invites_pending")
         if not any(m.status == MemberStatus.accepted for m in others):
             raise conflict("no_accepted_members")
-        for field, value in data.model_dump(exclude_none=True).items():
+        selected = None
+        if data.venue_place_id:
+            from app.services.places import nearby
+            plan = self.db.get(Plan, proposal.plan_id)
+            result = nearby(plan.public_location, plan.city, self.settings.venue_search_enabled)
+            selected = next((p for p in result["places"] if p["id"] == data.venue_place_id), None)
+            if selected is None:
+                raise conflict("venue_not_found_search_again")
+        if (data.venue_label is not None and data.venue_label != proposal.venue_label) or (data.venue_category is not None and data.venue_category != proposal.venue_category):
+            proposal.venue_details = None
+            proposal.venue_verified = False
+        for field, value in data.model_dump(exclude_none=True, exclude={"venue_place_id"}).items():
             setattr(proposal, field, value)
+        if selected:
+            proposal.venue_label = selected["name"]
+            proposal.venue_category = selected["category"]
+            proposal.venue_details = selected
+            proposal.venue_verified = False  # map listing is not a booking or a safety guarantee
         if proposal.start_at is None or proposal.end_at is None or as_utc(proposal.end_at) <= as_utc(proposal.start_at):
             raise conflict("invalid_time")
         self._bump(proposal)
@@ -329,6 +347,7 @@ class Proposals:
             venue_label=proposal.venue_label if details else None,
             venue_category=proposal.venue_category if details else None,
             venue_verified=proposal.venue_verified,
+            venue_details=proposal.venue_details if details else None,
             icebreaker=proposal.icebreaker if role != "invitee" else None,
             viewer_role=role,
             initiator_name=initiator.user.display_name,

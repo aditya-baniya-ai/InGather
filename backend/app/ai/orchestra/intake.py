@@ -30,6 +30,7 @@ Rules:
 - title: short (max 8 words). goal_text: one sentence in the person's own voice about what they want.
 - city: the city name only (e.g. "UT Austin" -> "Austin"). timezone: the IANA zone of that city (Austin -> \
 America/Chicago); if no city, use the device timezone given below.
+- public_location: the explicitly stated PUBLIC conference/event venue or street address, if any; never infer a hotel, home, or live location. null if unspecified.
 - Dates: YYYY-MM-DD. Resolve month/day and relative dates against TODAY below to the next occurrence that is today or later \
 (never a past date). Single day -> start_date = end_date.
 - windows: free-time windows as LOCAL wall-clock times in that timezone, "YYYY-MM-DDTHH:MM". "at 10 am" or "from 10 am" \
@@ -47,6 +48,7 @@ Reply only with the JSON answer."""
         "title": nullable(STR),
         "goal_text": STR,
         "city": nullable(STR),
+        "public_location": nullable(STR),
         "timezone": nullable(STR),
         "start_date": nullable(STR),
         "end_date": nullable(STR),
@@ -93,6 +95,7 @@ def clean_draft(raw: dict, text: str, today: date | None = None) -> PlanDraftOut
         except ValidationError:
             return None
 
+    out["public_location"] = check("public_location", raw.get("public_location"))
     for f in FIELDS:
         out[f] = check(f, raw.get(f))
     for f in ("start_date", "end_date"):

@@ -15,7 +15,7 @@ function Roster({ p, title = "Group" }: { p: Proposal; title?: string }) {
   const people = p.members.filter((m) => m.status !== "suggested" && m.status !== "passed");
   return (
     <Panel className="p-5" aria-labelledby="roster-title">
-      <h2 id="roster-title" className="mb-3 text-[17px] font-semibold">{title}</h2>
+      <h2 id="roster-title" className="mb-3 section-title">{title}</h2>
       <ul className="flex flex-col gap-3">
         {people.map((m) => (
           <li key={m.user_id} className="flex items-center gap-3">
@@ -40,7 +40,7 @@ function Header({ p, organizer }: { p: Proposal; organizer?: string }) {
         <Pill tone={p.status === "confirmed" ? "emerald" : p.status === "cancelled" ? "neutral" : "violet"}>{PROPOSAL_STATUS[p.status]}</Pill>
         <span className="inline-flex items-center gap-1.5 text-[13.5px] text-muted"><Users className="size-4" aria-hidden /><span>Group of <span className="num">{p.group_size}</span></span></span>
       </div>
-      <h1 className="font-display text-[34px] leading-[1.05] tracking-[-0.01em] sm:text-[40px]">{p.activity_title}</h1>
+      <h1 className="page-title">{p.activity_title}</h1>
       <p className="mt-2 text-[15px] text-muted">{[p.city, date, organizer && `from ${organizer}`].filter(Boolean).join(" · ")}</p>
     </header>
   );
@@ -66,7 +66,7 @@ function InviteeView({ p, organizer }: { p: Proposal; organizer?: string }) {
     <>
       <Header p={p} organizer={organizer} />
       <Panel className="p-5 sm:p-6">
-        <h2 className="text-[17px] font-semibold">You've been invited to a small meetup</h2>
+        <h2 className="section-title">You've been invited to a small meetup</h2>
         <p className="mt-2 text-[15px]">
           {organizer ?? "Someone"}'s Gather Agent thought you might enjoy this. Accepting shares your display name and interests with the group, nothing else.
           You'll see who else is coming and agree on a public place before anything is final.
@@ -122,7 +122,7 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
         {final && <SafeMeet p={p} />}
         {p.status === "pending_owner" && (
           <Panel className="p-5 sm:p-6" aria-labelledby="proposal-title">
-            <h2 id="proposal-title" className="text-[17px] font-semibold">Your agent has a proposal</h2>
+            <h2 id="proposal-title" className="section-title">Your agent has a proposal</h2>
             {p.explanation && <p className="mt-2 text-[15px] leading-relaxed">{p.explanation}</p>}
             <div className="mt-4"><VenueTime p={p} /></div>
             <p className="mt-3 flex items-center gap-2 text-[13.5px] text-muted"><Lock className="size-4" aria-hidden /> {someoneIn ? "No new invitations have been sent." : "No invitation has been sent yet."}</p>
@@ -137,7 +137,7 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
         )}
         {suggested && outstanding && (
           <Panel className="p-5 sm:p-6" aria-labelledby="suggested-title">
-            <h2 id="suggested-title" className="mb-1 text-[17px] font-semibold">{someoneIn ? "New suggestions need your approval" : "People you could invite"}</h2>
+            <h2 id="suggested-title" className="mb-1 section-title">{someoneIn ? "New suggestions need your approval" : "People you could invite"}</h2>
             <p className="mb-4 text-[14px] text-muted">I found a possible group with compatible plans. You choose who to invite.</p>
             <CandidateList proposal={p} onRun={onRun} />
           </Panel>
@@ -145,7 +145,7 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
         {p.members.some((m) => !m.is_initiator && ["invited", "accepted", "declined"].includes(m.status)) && <Roster p={p} title="Invitations" />}
         {canFinalize && (!final || editing) && (
           <Panel className="p-5 sm:p-6" aria-labelledby="finalize-title">
-            <h2 id="finalize-title" className="mb-4 text-[17px] font-semibold">{final ? "Change final details" : "Set the final public place and time"}</h2>
+            <h2 id="finalize-title" className="mb-4 section-title">{final ? "Change final details" : "Set the final public place and time"}</h2>
             <FinalizeForm p={p} onDone={() => setEditing(false)} />
           </Panel>
         )}

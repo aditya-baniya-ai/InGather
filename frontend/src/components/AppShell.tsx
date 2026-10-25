@@ -35,7 +35,7 @@ function Badge({ n }: { n: number }) {
   return <span className="num grid min-w-5 h-5 place-items-center rounded-full ig-grad px-1.5 text-[11.5px] font-semibold text-white" aria-label={`${n} new`}>{n}</span>;
 }
 
-export function AppShell({ children, aside }: { children: ReactNode; aside?: ReactNode }) {
+export function AppShell({ children, aside, chatAside = false }: { children: ReactNode; aside?: ReactNode; chatAside?: boolean }) {
   const invites = useInviteCount();
   const { pathname } = useLocation();
   const activePath = pathname.startsWith("/plans/") ? "/agent" : pathname.startsWith("/proposals/") ? "/invitations" : pathname;
@@ -87,7 +87,7 @@ export function AppShell({ children, aside }: { children: ReactNode; aside?: Rea
           {children}
           <footer className="mt-16 text-[12.5px] leading-relaxed text-muted">{DISCLAIMER}</footer>
         </main>
-        <aside aria-label="Context" className="sticky top-0 hidden h-dvh w-[320px] shrink-0 overflow-y-auto py-10 xl:block">
+        <aside aria-label="Context" className={cx("sticky top-0 hidden h-dvh shrink-0 overflow-y-auto py-10 xl:block", chatAside ? "w-[360px] 2xl:w-[400px]" : "w-[320px]")}>
           {aside ?? <SafetyTips />}
         </aside>
       </div>

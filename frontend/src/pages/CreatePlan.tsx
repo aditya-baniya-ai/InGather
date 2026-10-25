@@ -59,6 +59,7 @@ export function CreatePlan() {
   const [draft, setDraft] = useState<PlanDraft | null>(null);
   const [aiOff, setAiOff] = useState(false);
   const [custom, setCustom] = useState("");
+  const [publicLocation, setPublicLocation] = useState("");
   const [preview, setPreview] = useState("");
   const [mode, setMode] = useState<DiscoveryMode>("private_browse");
   const [consent, setConsent] = useState(false);
@@ -84,6 +85,7 @@ export function CreatePlan() {
     setForm((f) => ({ ...f, ...patch }));
     setFilled(new Set(keysFilled));
     setDraft(d);
+    if (d.public_location) setPublicLocation(d.public_location);
     const smooth = !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }));
   };
@@ -97,7 +99,7 @@ export function CreatePlan() {
     setBusy(true);
     try {
       const plan = await api.createPlan({
-        activity_type: activity, title: title.trim(), goal_text: goal.trim(), city: city.trim(), timezone,
+        activity_type: activity, title: title.trim(), goal_text: goal.trim(), city: city.trim(), timezone, public_location: publicLocation.trim() || null,
         start_date: startDate, end_date: endDate, intent, interests, group_min: size[0], group_max: size[1],
         group_only: groupOnly, preview_text: preview.trim() || null, windows: windowsToUtc(windows, timezone),
       });
@@ -115,7 +117,7 @@ export function CreatePlan() {
   return (
     <AppShell>
       <header className="mb-6">
-        <h1 className="font-display text-[36px] leading-[1.05] sm:text-[44px]">New <span className="ig-text">private</span> plan</h1>
+        <h1 className="page-title">New <span className="ig-text">private</span> plan</h1>
         <p className="mt-1 flex items-center gap-1.5 text-[15px] text-muted"><Lock className="size-4" aria-hidden /> Your private itinerary is not public.</p>
       </header>
 
@@ -168,6 +170,7 @@ export function CreatePlan() {
             <TextField label={<>From{ai("startDate")}</>} type="date" value={startDate} onChange={(e) => changeStart(e.target.value)} required />
             <TextField label={<>To{ai("endDate")}</>} type="date" value={endDate} min={startDate} onChange={(e) => set({ endDate: e.target.value })} required />
           </div>
+          <TextField label="Conference or public event location" optional value={publicLocation} onChange={e => setPublicLocation(e.target.value)} maxLength={200} placeholder="Pennsylvania Convention Center, 1101 Arch St" hint="A public venue or street address helps find nearby cafés and restaurants. Never use your hotel or home. Nearby lookup sends only this location and city to OpenStreetMap." />
           <Fieldset legend={<>When you're free{ai("windows")}</>} hint={`Local time in ${timezone.replace(/_/g, " ")}. Your exact times stay private; the agent only learns whether a group overlaps.`}>
             <ul className="flex flex-col gap-3">
               {windows.map((w, i) => (
@@ -233,7 +236,7 @@ export function CreatePlan() {
             <span>
               <span className="block font-medium">Let Gather Agent process this plan with AI</span>
               <span className="block text-[13.5px] text-ink/80">
-                Minimized plan details (activity, city, dates, interests, your goal text) are sent to Meta's Muse Spark model to search and explain matches.
+                Minimized plan details (activity, city, public event location if provided, dates, interests, your goal text) are sent to Meta's Muse Spark model to search and explain matches.
                 Your exact times, email and identity documents are never sent. You can turn this off anytime.
               </span>
             </span>

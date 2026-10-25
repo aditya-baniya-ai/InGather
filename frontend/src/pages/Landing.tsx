@@ -69,7 +69,7 @@ export function Landing() {
       <main>
         <section className="mx-auto grid max-w-[1200px] items-center gap-12 px-4 pt-10 pb-20 sm:px-8 lg:grid-cols-[1.1fr_1fr] lg:pt-20">
           <div>
-            <h1 className="font-display text-[52px] leading-[0.98] tracking-[-0.02em] sm:text-[76px] lg:text-[88px]">Go places.<br /><span className="ig-text">Find your people.</span></h1>
+            <h1 className="hero-title">Go places.<br /><span className="ig-text">Find your people.</span></h1>
             <p className="mt-6 max-w-[34ch] text-[19px] leading-relaxed text-ink/90">
               Tell us what you want to do. Your Gather Agent finds a few compatible people, and you choose who to invite.
             </p>
@@ -83,7 +83,7 @@ export function Landing() {
 
         <section aria-labelledby="how" className="bg-[linear-gradient(120deg,#b01f60,#7a2299_55%,#3a46b8)] text-white">
           <div className="mx-auto max-w-[1200px] px-4 py-20 sm:px-8">
-            <h2 id="how" className="max-w-[18ch] font-display text-[40px] leading-[1.02] sm:text-[52px]">AI handles the coordination. Humans choose the connection.</h2>
+            <h2 id="how" className="max-w-[18ch] marketing-title">AI handles the coordination. Humans choose the connection.</h2>
             <ol className="mt-12 grid gap-8 md:grid-cols-3">
               {[
                 ["Tell your agent your plan", "A conference, a trip, a free evening. It stays private: no public post, no live location."],
@@ -100,7 +100,7 @@ export function Landing() {
         </section>
 
         <section aria-labelledby="privacy" className="mx-auto grid max-w-[1200px] gap-10 px-4 py-20 sm:px-8 lg:grid-cols-2">
-          <h2 id="privacy" className="font-display text-[40px] leading-[1.02] sm:text-[52px]">Your personal itinerary stays private until you choose what to share.</h2>
+          <h2 id="privacy" className="marketing-title">Your personal itinerary stays private until you choose what to share.</h2>
           <ul className="flex flex-col gap-5 text-[16px]">
             {FACTS.map(({ icon: Icon, text }) => (
               <li key={text} className="flex gap-4"><Icon className="mt-1 size-5 shrink-0 text-emerald" aria-hidden /><span>{text}</span></li>

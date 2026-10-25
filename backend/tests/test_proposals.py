@@ -218,3 +218,33 @@ class TestSaveAgentResult:
             run, plan, [(users["sofia"].id, "r")], "T", "E", "2027-01-17T12:00:00Z", "2027-01-17T13:00:00Z", "Café", "hotel", None
         )
         assert p.start_at.isoformat().startswith("2027-01-17T23:00") and p.venue_category == "cafe"
+
+
+def test_mapped_venue_disclosure_selection_and_manual_changes(db, users, as_user, flow, monkeypatch):
+    from app.services import places
+    from app.models import Plan, Proposal
+    alice, pid = flow
+    proposal = db.get(Proposal, UUID(pid))
+    plan = db.get(Plan, proposal.plan_id)
+    plan.public_location = 'Public Conference Venue'
+    place = {'id': 'node/123', 'name': 'Actual Café', 'category': 'cafe', 'latitude': 39.955,
+        'longitude': -75.16, 'address': '100 Arch St', 'distance_m': 120, 'source': 'OpenStreetMap'}
+    proposal.venue_label, proposal.venue_details = place['name'], place
+    db.commit()
+    monkeypatch.setattr(places, 'nearby', lambda *a: {'status': 'ok', 'places': [place], 'message': 'Mapped results', 'origin': {'label': 'Private event anchor'}})
+    assert alice.get(f'/api/plans/{plan.id}/nearby').status_code == 200
+    assert as_user(users['sofia']).get(f'/api/plans/{plan.id}/nearby').status_code == 404
+    approve(alice, pid, users['sofia'])
+    sofia = as_user(users['sofia'])
+    assert sofia.get(f'/api/proposals/{pid}').json()['venue_details'] is None
+    accept(as_user, users, pid, 'sofia')
+    assert sofia.get(f'/api/proposals/{pid}').json()['venue_details'] is None
+    selected = alice.post(f'/api/proposals/{pid}/finalize', {'venue_place_id': 'node/123'}).json()
+    assert selected['venue_details'] == place and selected['venue_label'] == place['name']
+    disclosed = sofia.get(f'/api/proposals/{pid}').json()
+    assert disclosed['venue_details'] == place and 'public_location' not in disclosed and 'origin' not in disclosed
+    rejected = alice.post(f'/api/proposals/{pid}/finalize', {'venue_place_id': 'node/forged'})
+    assert rejected.status_code == 409
+    changed = alice.post(f'/api/proposals/{pid}/finalize', {'venue_label': 'A different public café'}).json()
+    assert changed['venue_details'] is None and changed['version'] > selected['version']
+    assert not any(m['confirmed'] for m in changed['members'])

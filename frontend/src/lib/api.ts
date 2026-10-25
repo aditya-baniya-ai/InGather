@@ -33,6 +33,7 @@ export interface PlanIn {
   title: string;
   goal_text: string;
   city: string;
+  public_location?: string | null;
   timezone: string;
   start_date: string;
   end_date: string;
@@ -101,6 +102,7 @@ export interface Proposal {
   venue_label: string | null;
   venue_category: string | null;
   venue_verified: boolean;
+  venue_details?: VenuePlace | null;
   icebreaker: string | null;
   viewer_role: ViewerRole;
   members: Member[];
@@ -136,6 +138,7 @@ export interface PlanDraft {
   title: string | null;
   goal_text: string;
   city: string | null;
+  public_location?: string | null;
   timezone: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -152,7 +155,9 @@ export interface PlanDraft {
 
 export interface Message { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
 export interface BlockedUser { user_id: string; display_name: string }
-export interface FinalizeIn { start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
+export interface VenuePlace { id: string; name: string; category: string; latitude: number; longitude: number; address: string; distance_m: number; source: string }
+export interface NearbyPlaces { status: string; message: string; places: VenuePlace[]; origin?: { latitude: number; longitude: number; label: string } }
+export interface FinalizeIn { venue_place_id?: string; start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
 export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only">>;
 
 export class ApiError extends Error {
@@ -236,6 +241,7 @@ export class ApiClient {
   plans = () => this.get<Plan[]>("/api/plans");
   plan = (id: string) => this.get<Plan>(`/api/plans/${id}`);
   createPlan = (plan: PlanIn) => this.post<Plan>("/api/plans", plan);
+  nearbyPlaces = (id: string) => this.get<NearbyPlaces>(`/api/plans/${id}/nearby`);
   updatePlan = (id: string, patch: Partial<PlanIn>) => this.request<Plan>("PATCH", `/api/plans/${id}`, patch);
   setDiscovery = (id: string, mode: DiscoveryMode, ai_consent?: boolean) =>
     this.post<Plan>(`/api/plans/${id}/discovery`, ai_consent === undefined ? { mode } : { mode, ai_consent });

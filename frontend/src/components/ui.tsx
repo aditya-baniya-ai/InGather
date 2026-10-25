@@ -230,7 +230,7 @@ export function Dialog({ open, onClose, title, children, footer }: { open: boole
 export function SectionTitle({ children, action, id }: { children: ReactNode; action?: ReactNode; id?: string }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">
-      <h2 id={id} className="text-[17px] font-semibold">{children}</h2>
+      <h2 id={id} className="section-title">{children}</h2>
       {action}
     </div>
   );

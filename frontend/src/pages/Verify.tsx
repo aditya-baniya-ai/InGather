@@ -54,7 +54,7 @@ export function Verify() {
   return (
     <AppShell>
       <header className="mb-6">
-        <h1 className="font-display text-[36px] leading-[1.05] sm:text-[44px]">{heading}</h1>
+        <h1 className="page-title">{heading}</h1>
         <p className="mt-2 max-w-[60ch] text-[15px] text-muted">
           {discovery} Verification confirms identity and age.
           It doesn't make anyone safe to meet, so meetups stay in public places and you can leave or report anytime.

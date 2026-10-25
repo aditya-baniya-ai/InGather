@@ -45,7 +45,7 @@ export function Invitations() {
 
   return (
     <AppShell>
-      <h1 className="mb-1 font-display text-[36px] leading-[1.05] sm:text-[44px]">Invitations</h1>
+      <h1 className="mb-1 page-title">Invitations</h1>
       <p className="mb-6 text-[15px] text-muted">Only people an organizer explicitly approved can invite you. You can always say no.</p>
       {note && <p role="status" className="rise mb-4 rounded-2xl bg-raised px-4 py-3 text-[14.5px]">{note}</p>}
 

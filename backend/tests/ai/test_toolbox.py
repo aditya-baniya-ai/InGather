@@ -107,3 +107,27 @@ def test_humanize_replaces_handles_case_insensitively(db, settings, world):
     tb.execute("find_eligible_candidates", {"excluded_candidate_ids": []})
     h = handles(tb)["Bob"]
     assert tb.humanize(f"{h.capitalize()} and cand_77 fit") == "Bob and another person fit"
+
+@pytest.mark.parametrize('mapped', [True, False])
+def test_event_anchor_grounds_venue_in_provider_results(db, settings, world, monkeypatch, mapped):
+    from app.services import places
+    world['plan'].public_location = 'Public Conference Venue'
+    db.commit()
+    place = {'id': 'node/1', 'name': 'Mapped café', 'category': 'cafe', 'latitude': 39.955,
+             'longitude': -75.16, 'address': 'Public street', 'distance_m': 50, 'source': 'OpenStreetMap'}
+    calls = []
+    def lookup(location, city, enabled):
+        calls.append((location, city))
+        return {'status': 'ok' if mapped else 'unavailable', 'places': [place] if mapped else [], 'message': 'Test lookup'}
+    monkeypatch.setattr(places, 'nearby', lookup)
+    tb = box(db, settings, world)
+    tb.execute('find_eligible_candidates', {'excluded_candidate_ids': []})
+    result = propose(tb, list(tb._handles)[:2], venue_label='An invented café near the conference')
+    assert result['saved']
+    assert calls == [('Public Conference Venue', 'Philadelphia')]
+    if mapped:
+        assert tb.proposal.venue_label == 'Mapped café'
+        assert tb.proposal.venue_details == place
+    else:
+        assert tb.proposal.venue_label == 'A public cafe in Philadelphia (choose exact location)'
+        assert tb.proposal.venue_details is None

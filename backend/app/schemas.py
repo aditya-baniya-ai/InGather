@@ -98,6 +98,7 @@ class PlanFields(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     goal_text: str = Field(min_length=1, max_length=2000)
     city: str = Field(min_length=1, max_length=80)
+    public_location: str | None = Field(None, max_length=200)
     timezone: str = Field(max_length=64)
     start_date: date
     end_date: date
@@ -141,6 +142,7 @@ class PlanPatch(BaseModel):
     title: str | None = None
     goal_text: str | None = None
     city: str | None = None
+    public_location: str | None = Field(None, max_length=200)
     timezone: str | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -234,6 +236,7 @@ class RespondIn(BaseModel):
 
 
 class FinalizeIn(BaseModel):
+    venue_place_id: str | None = Field(None, max_length=80)
     start_at: UTC | None = None
     end_at: UTC | None = None
     venue_label: str | None = Field(None, min_length=1, max_length=160)
@@ -269,6 +272,7 @@ class ProposalOut(BaseModel):
     venue_label: str | None
     venue_category: str | None
     venue_verified: bool
+    venue_details: dict | None = None
     icebreaker: str | None
     viewer_role: Literal["owner", "invitee", "member"]
     initiator_name: str
@@ -373,6 +377,7 @@ class PlanDraftOut(BaseModel):
     title: str | None = None
     goal_text: str
     city: str | None = None
+    public_location: str | None = Field(None, max_length=200)
     timezone: str | None = None
     start_date: date | None = None
     end_date: date | None = None

@@ -6,6 +6,7 @@ import { AppShell } from "../components/AppShell";
 import { AgentTimeline } from "../components/AgentTimeline";
 import { Cover } from "../components/Brand";
 import { CandidateList } from "../components/CandidateList";
+import { PublicLocation } from "../components/PublicLocation";
 import { VoiceButton } from "../components/VoiceButton";
 import { Button, EmptyState, ErrorState, InlineError, LoadingBlock, Panel, Pill } from "../components/ui";
 import { api, ApiError, type Plan, type Proposal } from "../lib/api";
@@ -61,7 +62,7 @@ function PlanHeader({ plan }: { plan: Plan }) {
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-[13px] text-muted">{activityLabel(plan.activity_type)} · {plan.city} · {formatDateRange(plan.start_date, plan.end_date)}</p>
-          <h1 className="mt-0.5 text-[24px] font-semibold leading-tight tracking-[-0.01em] sm:text-[28px]">{plan.title}</h1>
+          <h1 className="page-title mt-1">{plan.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Pill tone={paused ? "amber" : "neutral"}><Lock className="size-3" aria-hidden /> {DISCOVERY[plan.discovery_mode].label}</Pill>
             {plan.ai_consent && <Pill tone="violet">AI processing on</Pill>}
@@ -138,10 +139,11 @@ export function AgentWorkspace() {
   return (
     <AppShell aside={<AgentGuardrails />}>
       <PlanHeader plan={p} />
+      <div className="mb-6"><PublicLocation key={p.id} plan={p} /></div>
       {created && !run.data && <p className="rise mb-4 rounded-2xl bg-emerald-soft px-4 py-3 text-[14.5px] text-emerald-ink" role="status">Plan saved privately. Nobody else can see it.</p>}
 
       <Panel className="p-5 sm:p-6" aria-labelledby="agent-title">
-        <h2 id="agent-title" className="flex items-center gap-2 text-[17px] font-semibold"><Sparkles className="size-4 text-violet" aria-hidden /> Gather Agent</h2>
+        <h2 id="agent-title" className="flex items-center gap-2 section-title"><Sparkles className="size-4 text-violet" aria-hidden /> Gather Agent</h2>
         {!p.ai_consent ? <div className="mt-4"><ConsentCard plan={p} /></div> : (
           <div className="mt-4">
             <label htmlFor="goal" className="sr-only">What should your agent look for?</label>
@@ -178,7 +180,7 @@ export function AgentWorkspace() {
         {proposal.isError && !(proposal.error instanceof ApiError && proposal.error.status === 404) && <ErrorState error={proposal.error} onRetry={() => proposal.refetch()} what="suggestions" />}
         {reviewing ? (
           <>
-            <h2 id="people-title" className="mb-1 text-[17px] font-semibold">Your people</h2>
+            <h2 id="people-title" className="mb-1 section-title">Your people</h2>
             <p className="mb-4 text-[14px] text-muted">{prop.explanation || "I found a possible group with compatible plans. You choose who to invite."}</p>
             {invitedLine(prop) && <p className="mb-4 text-[14px]">{invitedLine(prop)}</p>}
             <CandidateList proposal={prop} onRun={follow} agentWorking={running} />
@@ -210,7 +212,7 @@ export function AgentIndex() {
   if (active.length === 1) return <Navigate to={`/plans/${active[0].id}`} replace />;
   return (
     <AppShell aside={<AgentGuardrails />}>
-      <h1 className="mb-1 font-display text-[36px] leading-[1.05] sm:text-[44px]">Gather <span className="ig-text">Agent</span></h1>
+      <h1 className="mb-1 page-title">Gather <span className="ig-text">Agent</span></h1>
       <p className="mb-6 text-[15px] text-muted">Pick a plan. Your agent works on one private plan at a time.</p>
       {active.length === 0 ? (
         <EmptyState title="Your agent needs a plan to work from." action={<Link to="/create" className="press inline-flex min-h-11 items-center rounded-full ig-grad btn-grad px-5 font-medium text-white">Create a private plan</Link>} />

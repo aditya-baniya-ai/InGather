@@ -8,7 +8,6 @@
 */
 @theme {
   --font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Instrument Serif", ui-serif, Georgia, serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
 
   --color-ground: #fafafc;
@@ -76,6 +75,23 @@
 }
 
 @layer components {
+  /* One type family and shared hierarchy across marketing, account and app pages. */
+  .hero-title, .marketing-title, .page-title {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .hero-title { font-size: 46px; line-height: 1.04; letter-spacing: -0.04em; }
+  .marketing-title { font-size: 32px; line-height: 1.12; letter-spacing: -0.035em; }
+  .page-title { font-size: 30px; line-height: 1.15; letter-spacing: -0.035em; }
+  .section-title { font-size: 17px; line-height: 1.4; font-weight: 600; letter-spacing: -0.015em; }
+  @media (min-width: 640px) {
+    .hero-title { font-size: 68px; }
+    .marketing-title { font-size: 44px; }
+    .page-title { font-size: 38px; }
+  }
+  @media (min-width: 1024px) { .hero-title { font-size: 72px; } }
+
   .press { transition: transform 140ms var(--ease-out), background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
   .press:active:not(:disabled) { transform: scale(0.97); }
 

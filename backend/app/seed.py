@@ -135,7 +135,7 @@ class Seeder:
             user = User(email=p.email, password_hash=Passwords.hash(PASSWORD))
             self.db.add(user)
         user.display_name, user.bio, user.interests = p.name, p.bio, p.interests
-        user.avatar_url = f"https://api.dicebear.com/9.x/notionists/svg?seed={p.name}"
+        user.avatar_url = f"/avatars/{p.key}.svg"
         user.verification, user.is_adult, user.is_demo = Verification.verified_demo, True, True
         user.discovery_paused, user.group_only = False, True
         return user

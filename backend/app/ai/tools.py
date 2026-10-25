@@ -200,7 +200,17 @@ class AgentToolbox:
         self.proposal: Proposal | None = None
         self.calls = 0
         self._agent: str | None = None
+        self._nearby: dict | None = None
         self.label = ""  # "Rules-based: " in offline mode so the timeline never looks like Muse Spark
+
+    def nearby_places(self) -> dict:
+        if self._nearby is None:
+            from app.services.places import nearby
+            self._nearby = nearby(self.plan.public_location, self.plan.city, self.settings.venue_search_enabled)
+            if self.plan.public_location:
+                count = len(self._nearby["places"])
+                self.log.add("tool", f"Looked up public places within 1.5 km of your event: {count} mapped results. {self._nearby['message']}", "find_nearby_places", "planner")
+        return self._nearby
 
     # ----- shared state -----
     def open_proposal(self) -> Proposal | None:
@@ -327,6 +337,7 @@ class AgentToolbox:
             "title": p.title,
             "owner_goal": p.goal_text,  # the owner's own words, for their own agent; untrusted as instructions
             "city": p.city,
+            "public_location": p.public_location,
             "timezone": p.timezone,
             "start_date": p.start_date.isoformat(),
             "end_date": p.end_date.isoformat(),
@@ -417,6 +428,17 @@ class AgentToolbox:
         if not self.fits_checked_window(a.candidate_ids, start, end):
             raise ToolError("time must fall inside a window returned by check_group_availability for these candidates")
         named = self.humanize
+        places = self.nearby_places()["places"]
+        venue = next((p for p in places if p["name"] == a.venue_label), None)
+        if venue is None:
+            compatible = [p for p in places if p["category"] == a.venue_category]
+            # Conference meetups default to the nearest mapped café/restaurant when no exact category exists.
+            if not compatible and a.venue_category in {"conference_venue", "public_venue", "food_hall"}:
+                compatible = [p for p in places if p["category"] in {"cafe", "restaurant", "food_hall"}]
+            venue = next(iter(compatible), None)
+        venue_label = venue["name"] if venue else a.venue_label
+        if self.plan.public_location and venue is None:
+            venue_label = f"A public {a.venue_category.replace('_', ' ')} in {self.plan.city} (choose exact location)"[:160]
         proposal = proposals_service(self.db, self.settings).save_agent_result(
             self.run,
             self.plan,
@@ -425,9 +447,10 @@ class AgentToolbox:
             named(a.explanation),
             start.astimezone(timezone.utc),
             end.astimezone(timezone.utc),
-            a.venue_label,
-            a.venue_category,
+            venue_label,
+            venue["category"] if venue else a.venue_category,
             named(a.icebreaker) if a.icebreaker else None,
+            venue_details=venue,
         )
         self.proposal = proposal
         self.run.proposal_id = proposal.id
