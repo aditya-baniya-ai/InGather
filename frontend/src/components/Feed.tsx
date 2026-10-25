@@ -7,6 +7,7 @@ import { Avatar, Button, EmptyState, ErrorState, InlineError, LoadingBlock, Pill
 import { api, type FeedItem } from "../lib/api";
 import { DAYS, SORTS, matchesDay, remember, remembered, type DayFilter, type FeedSort } from "../lib/feed";
 import { keys, useFeed } from "../lib/hooks";
+import { CATEGORIES } from "../lib/vocab";
 
 /** "Tue, Oct 27" from a plain YYYY-MM-DD (the group's local date). */
 export function dayLabel(day: string): string {
@@ -143,14 +144,15 @@ function ChipGroup<T extends string>({ label, value, options, onChange }: { labe
 }
 
 /** Home feed: open groups with room for one or two more, ranked for you by the InGather matcher. */
-export function FeedSection() {
+export function FeedSection({ activity = null }: { activity?: string | null }) {
   const [sort, setSort] = useState<FeedSort>(() => remembered("ingather.feedSort", ["match", "soonest"] as const, "match"));
   const [day, setDay] = useState<DayFilter>(() => remembered("ingather.feedDay", ["any", "today", "tomorrow", "weekend"] as const, "any"));
-  const feed = useFeed(sort);
+  const feed = useFeed(sort, activity);
+  const kind = activity ? CATEGORIES.find((c) => c.activity === activity)?.label : null;
   const shown = (feed.data ?? []).filter((i) => i.request_status || matchesDay(i.day, day));
   return (
     <section className="mt-8" aria-labelledby="feed-title">
-      <SectionTitle id="feed-title">Groups with room for you</SectionTitle>
+      <SectionTitle id="feed-title">{kind ? `${kind} groups with room for you` : "Groups with room for you"}</SectionTitle>
       <p className="-mt-2 mb-4 flex items-center gap-1.5 text-[13.5px] text-muted">
         <BrainCircuit className="size-3.5" aria-hidden /> Ranked for you by the InGather matcher from your interests and plans. Hosts approve every request.
       </p>
@@ -161,7 +163,7 @@ export function FeedSection() {
       {feed.isPending ? <LoadingBlock label="Finding groups for you" rows={2} />
         : feed.isError ? <ErrorState error={feed.error} onRetry={() => feed.refetch()} what="your feed" />
           : shown.length === 0 ? (
-            <EmptyState title={day === "any" ? "No open groups for you right now." : `No open groups ${DAYS.find((d) => d.value === day)?.label.toLowerCase()}.`}>
+            <EmptyState title={`No open ${kind ? `${kind.toLowerCase()} ` : ""}groups ${day === "any" ? "for you right now" : DAYS.find((d) => d.value === day)?.label.toLowerCase()}.`}>
               {day === "any" ? "When people near your plans have a spot open, they'll show up here. Verified accounts only." : "Try another day, or check back later."}
             </EmptyState>
           ) : (

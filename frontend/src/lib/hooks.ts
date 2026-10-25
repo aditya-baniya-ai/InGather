@@ -44,9 +44,9 @@ export const useMessages = (id: string, enabled: boolean) =>
   useQuery({ queryKey: keys.messages(id), queryFn: () => api.messages(id), enabled, retry: noRetryOn4xx, refetchInterval: 3000 });
 
 /** Home feed in the chosen order; polls every few seconds while a join request is waiting for an answer. */
-export const useFeed = (sort: "match" | "soonest" = "match") =>
+export const useFeed = (sort: "match" | "soonest" = "match", activity?: string | null) =>
   useQuery({
-    queryKey: [...keys.feed, sort], queryFn: () => api.feed(sort), placeholderData: (prev) => prev,
+    queryKey: [...keys.feed, sort, activity ?? "all"], queryFn: () => api.feed(sort, activity),
     refetchInterval: (q) => (q.state.data?.some((i) => i.request_status === "pending") ? 2000 : 30000),
   });
 

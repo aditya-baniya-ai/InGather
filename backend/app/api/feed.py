@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import User
-from app.schemas import FeedItemOut, JoinDraftOut, JoinIn, JoinRequestOut, OpenIn
+from app.schemas import ActivityType, FeedItemOut, JoinDraftOut, JoinIn, JoinRequestOut, OpenIn
 from app.security import current_user, not_found
 from app.services.feed import Feed, auto_respond
 from app.services.policy import Policy
@@ -25,8 +25,9 @@ def feed(db: Session = Depends(get_db), s: Settings = Depends(get_settings)) -> 
 
 
 @router.get("/feed", response_model=list[FeedItemOut])
-def home_feed(sort: Literal["match", "soonest"] = "match", user: User = Depends(current_user), svc: Feed = Depends(feed)):
-    return svc.items(user, sort=sort)
+def home_feed(sort: Literal["match", "soonest"] = "match", activity: ActivityType | None = None,
+              user: User = Depends(current_user), svc: Feed = Depends(feed)):
+    return svc.items(user, sort=sort, activity=activity)
 
 
 def _item(svc: Feed, user: User, proposal_id: UUID) -> FeedItemOut:

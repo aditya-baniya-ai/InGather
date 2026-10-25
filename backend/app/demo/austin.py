@@ -9,6 +9,7 @@ to the new week and stale groups are rebuilt.
 
 import logging
 import random
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -24,6 +25,8 @@ from app.models import (
 from app.security import Passwords
 
 log = logging.getLogger("ingather.demo")
+ACTIVITIES = ("coffee", "event", "other", "hackathon", "study", "conference", "travel")
+MIN_PER_ACTIVITY = 12  # open groups per Home category tab
 
 DOMAIN = "@atx.ingather.example"
 PASSWORD = "demo-password"
@@ -32,6 +35,24 @@ VENUE_KINDS = {  # venue categories that suit each activity, best first (catalog
     "conference": ("cafe", "restaurant"), "study": ("library", "cafe"), "event": ("food_hall", "restaurant", "cafe"),
     "travel": ("museum", "cafe", "food_hall"), "other": ("cafe", "food_hall", "park"),
 }
+
+
+# How a group's title shows which kind of plan it is, unless the title already says so.
+_TITLE_CONTEXT = {
+    "conference": (("conference", "session"), "{t} after the conference sessions"),
+    "travel": (("austin", "explor", "visit"), "{t} while visiting Austin"),
+    "study": (("study", "library", "class"), "Study break: {l}"),
+    "hackathon": (("hack",), "{t} at the hackathon"),
+}
+
+
+def group_title(plan: Plan) -> str:
+    """The host's plan title, made to fit its Home category ("Museum afternoon while visiting Austin")."""
+    title = plan.title
+    words, template = _TITLE_CONTEXT.get(plan.activity_type, ((), "{t}"))
+    if any(w in title.lower() for w in words) or not words:
+        return title[:120]
+    return template.format(t=title, l=title[0].lower() + title[1:])[:120]
 
 
 def is_synthetic(user: User | None) -> bool:
@@ -114,8 +135,14 @@ class AustinSeeder:
         from app.services.gather import GatherEngine, start_run
 
         current = [p for p in self._synthetic_proposals() if p.open_to_requests and p.status != ProposalStatus.cancelled]
+        for p in current:  # keeps titles of groups seeded by older versions in line with their category
+            p.activity_title = group_title(self.db.get(Plan, p.plan_id))
+        counts = Counter(self.db.get(Plan, p.plan_id).activity_type for p in current)
+        # Every Home category tab (travel, conference, study...) needs groups of its own, not just the common ones.
+        floor = min(MIN_PER_ACTIVITY, max(1, self.groups // len(ACTIVITIES)))
         need = self.groups - len(current)
-        if need <= 0:
+        if need <= 0 and all(counts[a] >= floor for a in ACTIVITIES):
+            self.db.commit()
             return len(current)
         by_email = {p.email: p for p in people}
         users = {u.id: u for u in self.db.scalars(select(User).where(User.email.like(f"%{DOMAIN}")))}
@@ -125,10 +152,16 @@ class AustinSeeder:
         plans = [pl for pl in self.db.scalars(select(Plan).where(Plan.owner_id.in_(users), Plan.status == PlanStatus.active))
                  if pl.group_max >= 3 and pl.owner_id not in taken]
         self.rng.shuffle(plans)
+        pool = {a: [pl for pl in plans if pl.activity_type == a] for a in ACTIVITIES}
         formed = 0
-        for plan in plans:
-            if formed >= need:
+        while True:
+            # Fill the thinnest category first; stop at the target once every category has its floor.
+            short = [a for a in ACTIVITIES if pool[a] and counts[a] < floor]
+            open_ = [a for a in ACTIVITIES if pool[a]]
+            if not open_ or (formed >= need and not short):
                 break
+            activity = min(short or open_, key=lambda a: counts[a])
+            plan = pool[activity].pop()
             host = users[plan.owner_id]
             if host.id in taken:
                 continue
@@ -140,6 +173,7 @@ class AustinSeeder:
                 continue
             self._open_up(proposal, plan, host, by_email.get(host.email), catalog)
             taken |= {m.user_id for m in proposal.members}
+            counts[activity] += 1
             formed += 1
         self.db.commit()
         return len(current) + formed
@@ -155,7 +189,7 @@ class AustinSeeder:
             proposal.members.remove(m)
         proposal.status = ProposalStatus.invites_pending
         proposal.open_to_requests = True
-        proposal.activity_title = plan.title[:120]  # the host's own words ("Board game night") read better in a feed
+        proposal.activity_title = group_title(plan)  # the host's own words ("Board game night") read better in a feed
         near = (host.home_lat, host.home_lng) if host.home_lat is not None else None
         venue = nearest(catalog, VENUE_KINDS.get(plan.activity_type, ("cafe",)), near) if catalog else None
         if venue:

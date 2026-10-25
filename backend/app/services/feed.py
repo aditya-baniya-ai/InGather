@@ -137,9 +137,10 @@ class Feed:
         return out
 
     # ----- the feed -----
-    def items(self, viewer: User, limit: int = 50, sort: str = "match") -> list[FeedItemOut]:
+    def items(self, viewer: User, limit: int = 50, sort: str = "match", activity: str | None = None) -> list[FeedItemOut]:
         """Open groups for the viewer. `sort`: "match" (best fit first, sooner first on ties) or "soonest" (earliest
-        first, best fit first on ties). Groups they asked to join or joined always come first."""
+        first, best fit first on ties). `activity` limits it to one kind of plan (a Home category tab). Groups they
+        asked to join or joined always come first."""
         if not self.policy.can_discover(viewer):
             return []
         q = select(Proposal).where(Proposal.open_to_requests.is_(True), Proposal.status.in_(JOINABLE),
@@ -152,11 +153,14 @@ class Feed:
             if req and req.status == JoinStatus.declined:
                 continue  # never shown again; the requester isn't told why
             plan = self._plan(proposal)
+            if activity and plan.activity_type != activity:
+                continue
             if self.joinable(proposal, plan) and self._visible_to(viewer, proposal, blocked):
                 groups.append((proposal, plan))
         # Groups the viewer already joined stay at the top as a link into their group.
         joined = [self.db.get(Proposal, r.proposal_id) for r in requests.values() if r.status == JoinStatus.accepted]
         joined = [(p, self._plan(p)) for p in joined if p and p.status != ProposalStatus.cancelled]
+        joined = [(p, plan) for p, plan in joined if not activity or plan.activity_type == activity]
         scored = [(*sc, p, plan) for (p, plan), sc in zip(groups + joined, self.score_many(viewer, groups + joined))]
         def key(t):
             fit, start = round(t[1] * 100), as_utc(t[4].start_at)  # sort on the fit people see, not a hidden score

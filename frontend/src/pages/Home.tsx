@@ -77,7 +77,7 @@ export function Home() {
         </Link>
       )}
 
-      {!filter && <FeedSection />}
+      <FeedSection activity={filter} />
 
       <section className="mt-8" aria-labelledby="plans-title">
         <SectionTitle id="plans-title" action={<Link to="/create" className="press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[14px] font-medium hover:bg-raised"><Plus className="size-4" aria-hidden /> New plan</Link>}>

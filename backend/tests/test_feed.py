@@ -47,7 +47,7 @@ def test_seeded_groups_have_one_or_two_open_spots(db, settings, austin):
         plan = db.get(Plan, p.plan_id)
         assert feed.joinable(p, plan) and 1 <= feed.spots_left(p, plan) <= 2
         assert all(m.status == MemberStatus.accepted for m in p.members)
-        assert p.activity_title == plan.title
+        assert plan.title in p.activity_title or plan.title[1:] in p.activity_title
 
 
 def test_feed_ranks_open_groups_without_revealing_details(db, users, settings, austin):
@@ -73,6 +73,17 @@ def test_feed_sorts_by_match_or_soonest_and_keeps_requests_on_top(db, users, set
     feed.request(alice, last, None)
     for order in ("match", "soonest"):
         assert feed.items(alice, sort=order)[0].proposal_id == last  # a pending request stays first
+
+
+def test_feed_filters_by_category_and_seeding_covers_every_category(db, users, settings, austin):
+    from collections import Counter
+
+    feed = Feed(db, settings)
+    kinds = Counter(i.activity_type for i in feed.items(users["alice"]))
+    assert len(kinds) >= 3  # groups aren't all coffee meetups
+    for kind in kinds:
+        only = feed.items(users["alice"], activity=kind)
+        assert len(only) == kinds[kind] and {i.activity_type for i in only} == {kind}
 
 
 def test_blocked_hosts_and_members_are_hidden(db, users, settings, austin):
