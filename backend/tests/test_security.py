@@ -186,15 +186,16 @@ def test_cancelled_and_paused_plans_leave_discovery(users, plan_of, as_user):
     assert not {"Maya", "Sofia", "Jordan"} & set(members(alice, pid))
 
 
-def test_deleting_a_plan_cancels_its_proposals(users, plan_of, as_user):
+def test_deleting_a_plan_removes_its_proposals_for_everyone(users, plan_of, as_user):
     alice = as_user(users["alice"])
     plan_id = plan_of(users["alice"]).id
     pid = start_agent(alice, plan_id)["proposal_id"]
     approve(alice, pid, users["sofia"])
     alice.delete(f"/api/plans/{plan_id}")
-    assert alice.get(f"/api/proposals/{pid}").json()["status"] == "cancelled"
+    assert alice.get(f"/api/proposals/{pid}").status_code == 404
     assert as_user(users["sofia"]).get(f"/api/proposals/{pid}").status_code == 404
-    assert alice.get(f"/api/plans/{plan_id}").json()["status"] == "cancelled"
+    assert as_user(users["sofia"]).get("/api/invitations").json() == []
+    assert alice.get(f"/api/plans/{plan_id}").status_code == 404
 
 
 def test_reports(as_user, users):

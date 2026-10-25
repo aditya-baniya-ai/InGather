@@ -11,7 +11,7 @@ import bcrypt  # noqa: E402
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine, event  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 from app import db as app_db  # noqa: E402
@@ -30,6 +30,7 @@ get_settings.cache_clear()
 @pytest.fixture(autouse=True)
 def engine(monkeypatch):
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    event.listen(eng, "connect", lambda conn, _: conn.execute("PRAGMA foreign_keys=ON"))  # cascade like Postgres
     app_db.Base.metadata.create_all(eng)
     app_db.SessionLocal.configure(bind=eng)  # background tasks open their own sessions
     monkeypatch.setattr(Passwords, "hash", staticmethod(lambda p: bcrypt.hashpw(p.encode(), bcrypt.gensalt(4)).decode()))

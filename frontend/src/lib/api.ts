@@ -298,6 +298,7 @@ export class ApiClient {
   sendMessage = (id: string, body: string) => this.post<Message>(`/api/proposals/${id}/messages`, { body });
 
   chats = () => this.get<Conversation[]>("/api/chats");
+  deleteChat = (id: string) => this.request<void>("DELETE", `/api/chats/people/${id}`);
   directMessages = (id: string) => this.get<Message[]>(`/api/chats/people/${id}/messages`);
   sendDirectMessage = (id: string, body: string) => this.post<Message>(`/api/chats/people/${id}/messages`, { body });
 

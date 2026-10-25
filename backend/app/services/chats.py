@@ -1,10 +1,11 @@
 """Inbox and persistent one-to-one conversations. No contact information is exposed."""
 from itertools import combinations
-from sqlalchemy import or_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
 from app.config import Settings
 from app.models import DirectConnection, DirectMessage, MemberStatus, Message, Proposal, ProposalMember, ProposalStatus, User
 from app.schemas import ChatPerson, ConversationOut, MessageOut
+from app.security import not_found
 from app.services.policy import Policy
 
 
@@ -58,6 +59,16 @@ class Chats:
                 last_message=last.body if last else None, last_sender_name=sender.display_name if sender else None,
                 updated_at=last.created_at if last else connection.created_at))
         return sorted(result, key=lambda c: c.updated_at, reverse=True)
+
+    def delete(self, user: User, peer_id) -> None:
+        """Delete a direct chat and its messages for both people; 404 if there is no such chat."""
+        pair = or_(and_(DirectConnection.user_a_id == user.id, DirectConnection.user_b_id == peer_id),
+                   and_(DirectConnection.user_a_id == peer_id, DirectConnection.user_b_id == user.id))
+        if self.db.scalar(select(DirectConnection).where(pair)) is None:
+            raise not_found()
+        self.db.execute(delete(DirectMessage).where(self.pair_messages(user.id, peer_id)))
+        self.db.execute(delete(DirectConnection).where(pair))
+        self.db.commit()
 
     def messages(self, user: User, peer_id):
         self.policy.direct_peer(user, peer_id)

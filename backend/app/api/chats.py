@@ -1,5 +1,5 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.db import get_db
@@ -30,3 +30,9 @@ def messages(peer_id: UUID, user: User = Depends(current_user), svc: Chats = Dep
 def send(peer_id: UUID, body: MessageIn, user: User = Depends(current_user), svc: Chats = Depends(chats)):
     limiter.hit('message', user.id)
     return svc.send(user, peer_id, body.body)
+
+
+@router.delete('/people/{peer_id}', status_code=204)
+def delete_chat(peer_id: UUID, user: User = Depends(current_user), svc: Chats = Depends(chats)):
+    svc.delete(user, peer_id)
+    return Response(status_code=204)

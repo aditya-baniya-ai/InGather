@@ -56,6 +56,12 @@ class Plans:
         Proposals(self.db, self.settings).cancel_for_plan(plan)
         self.db.commit()
 
+    def delete(self, plan: Plan) -> None:
+        """Owner removes the plan for good: its groups are cancelled for everyone first, then all its data goes."""
+        self.cancel(plan)
+        self.db.delete(plan)
+        self.db.commit()
+
     def out(self, plan: Plan) -> PlanOut:
         return PlanOut.build(plan, self._latest(Proposal, plan), self._latest(AgentRun, plan))
 

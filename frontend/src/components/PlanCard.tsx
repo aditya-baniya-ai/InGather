@@ -1,11 +1,12 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Eye, Lock } from "lucide-react";
-import type { Plan } from "../lib/api";
 import { useProposal } from "../lib/hooks";
 import { formatDateRange } from "../lib/time";
 import { activityLabel, DISCOVERY, PROPOSAL_STATUS } from "../lib/vocab";
 import { Cover } from "./Brand";
 import { Pill } from "./ui";
+import { RemoveButton } from "./RemoveButton";
+import { api, type Plan } from "../lib/api";
 
 function ProposalStatusLine({ id }: { id: string }) {
   const q = useProposal(id, false);
@@ -21,7 +22,7 @@ function ProposalStatusLine({ id }: { id: string }) {
 
 export function PlanCard({ plan, index = 0 }: { plan: Plan; index?: number }) {
   return (
-    <article className={`rise card lift overflow-hidden cat-${plan.activity_type}`} style={{ animationDelay: `${index * 60}ms` }}>
+    <article className={`rise card lift relative overflow-hidden cat-${plan.activity_type}`} style={{ animationDelay: `${index * 60}ms` }}>
       <Link to={`/plans/${plan.id}`} className="group block focus-visible:outline-offset-[-2px]">
         <div className="relative aspect-[16/8] overflow-hidden bg-sunk">
           <Cover activity={plan.activity_type} city={plan.city} src={plan.cover_image_url} className="size-full transition-transform duration-500 ease-[var(--ease-out)] group-hover:scale-[1.02]" />
@@ -37,6 +38,11 @@ export function PlanCard({ plan, index = 0 }: { plan: Plan; index?: number }) {
           </div>
         </div>
       </Link>
+      <span className="absolute right-3 top-3">
+        <RemoveButton label={`Delete plan ${plan.title}`} title="Delete this plan?" confirm="Delete plan"
+          body="The plan, its suggestions and any group made from it are removed for everyone. This can't be undone."
+          onRemove={() => api.deletePlan(plan.id)} invalidate={[["plans"], ["invitations"], ["chats"]]} />
+      </span>
     </article>
   );
 }

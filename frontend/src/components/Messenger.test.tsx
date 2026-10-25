@@ -7,7 +7,7 @@ const state = vi.hoisted(() => ({ signedIn: true }));
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ signedIn: state.signedIn, me: { id: 'alice', display_name: 'Alice' } }) }));
 vi.mock('./DirectChat', () => ({ DirectChat: ({ person }: { person: { display_name: string } }) => <p>Private conversation with {person.display_name}</p> }));
 vi.mock('./GatherChat', () => ({ GatherChat: () => <p>Group conversation</p> }));
-vi.mock('../lib/hooks', () => ({ useProposal: () => ({ isPending: false, isError: false, data: { id: 'group' } }) }));
+vi.mock('../lib/hooks', () => ({ useAction: () => ({ mutate: () => {}, isPending: false, error: null }), useProposal: () => ({ isPending: false, isError: false, data: { id: 'group' } }) }));
 const conversations: Conversation[] = [
   { id: 'group', kind: 'group', title: 'Conference coffee', people: [{ user_id: 'sofia', display_name: 'Sofia', avatar_url: null }], last_message: 'See you there', last_sender_name: 'Sofia', updated_at: '2027-01-17T20:00:00Z' },
   { id: 'sofia', kind: 'direct', title: 'Sofia', people: [{ user_id: 'sofia', display_name: 'Sofia', avatar_url: null }], last_message: null, last_sender_name: null, updated_at: '2027-01-17T20:00:00Z' },
@@ -28,7 +28,7 @@ it('opens a searchable inbox and switches between group and individual conversat
   expect(screen.getByText('Private conversation with Sofia')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Back to chats' }));
   fireEvent.click(screen.getByRole('button', { name: 'Groups' }));
-  fireEvent.click(screen.getByRole('button', { name: /Conference coffee/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Conference coffee/ }));
   expect(screen.getByText('Group conversation')).toBeInTheDocument();
 });
 it('closes with Escape and returns focus to the message icon', async () => {

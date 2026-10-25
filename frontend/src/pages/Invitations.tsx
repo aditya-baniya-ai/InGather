@@ -1,8 +1,9 @@
+import { RemoveButton } from "../components/RemoveButton";
 import { Link, useLocation } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Avatar, EmptyState, ErrorState, LoadingBlock, Pill, SectionTitle } from "../components/ui";
-import type { Plan } from "../lib/api";
+import { api, type Plan } from "../lib/api";
 import { useInvitations, usePlans, useProposal } from "../lib/hooks";
 import { formatDay } from "../lib/time";
 import { MEMBER_STATUS, PROPOSAL_STATUS } from "../lib/vocab";
@@ -57,8 +58,8 @@ export function Invitations() {
               : (
                 <ul className="flex flex-col gap-3">
                   {[...open, ...past].map((i) => (
-                    <li key={i.proposal_id}>
-                      <Link to={`/proposals/${i.proposal_id}`} className="press flex items-center gap-4 rounded-[20px] border border-line bg-surface p-4 hover:bg-raised">
+                    <li key={i.proposal_id} className="flex items-center gap-2">
+                      <Link to={`/proposals/${i.proposal_id}`} className="press flex min-w-0 flex-1 items-center gap-4 rounded-[20px] border border-line bg-surface p-4 hover:bg-raised">
                         <Avatar name={i.from_display_name} src={i.from_avatar_url} size={48} ring={i.status === "invited"} />
                         <div className="min-w-0 flex-1">
                           <p className="font-semibold">{i.activity_title}</p>
@@ -67,6 +68,11 @@ export function Invitations() {
                         </div>
                         <ArrowRight className="size-5 shrink-0 text-muted" aria-hidden />
                       </Link>
+                      <RemoveButton label={`Remove ${i.activity_title}`} title={i.status === "invited" ? "Decline and remove?" : "Leave and remove this group?"}
+                        confirm={i.status === "invited" ? "Decline" : "Leave group"}
+                        body={i.status === "invited" ? "This privately declines the invitation and removes it from your list." : "You leave the group and lose access to its details and chat. Others keep their copy."}
+                        onRemove={() => (i.status === "invited" ? api.respond(i.proposal_id, false) : api.leave(i.proposal_id))}
+                        invalidate={[["invitations"], ["chats"]]} />
                     </li>
                   ))}
                 </ul>

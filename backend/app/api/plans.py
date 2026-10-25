@@ -66,7 +66,7 @@ def set_discovery(
 
 @router.delete("/{plan_id}", status_code=204)
 def delete_plan(plan_id: UUID, user: User = Depends(current_user), svc: Plans = Depends(plans), pol: Policy = Depends(policy)):
-    svc.cancel(pol.own_plan(user, plan_id))
+    svc.delete(pol.own_plan(user, plan_id))
     return Response(status_code=204)
 
 
