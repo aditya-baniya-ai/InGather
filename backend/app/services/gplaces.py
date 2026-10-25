@@ -98,9 +98,16 @@ def lookup(name: str, area: str | None, city: str, key: str, near: tuple[float, 
     """The one place a venue name + address refers to, if Google knows it near the group."""
     hits = search(f"{name}, {area or city}", key, near, n=1)
     hit = hits[0] if hits else None
-    if hit and near and km(near, (hit["lat"], hit["lng"])) > max_km:
+    if hit and not near_enough(hit, near, max_km, city):
         return None
     return hit
+
+
+def near_enough(place: dict, near: tuple[float, float] | None, max_km: float, city: str) -> bool:
+    """Close to the group, or in the plan's own city (the middle can sit outside town when one person is far away)."""
+    if not near or km(near, (place["lat"], place["lng"])) <= max_km:
+        return True
+    return bool(city) and f", {city.casefold()}," in f", {(place.get('address') or '').casefold()},"
 
 
 _photo_cache: dict[tuple[str, int], tuple[float, str]] = {}

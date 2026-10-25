@@ -74,7 +74,7 @@ FALLBACK = [
 ]
 
 
-MAX_KM_FROM_MIDDLE = 30  # pins farther than this from the group are dropped as unreliable
+MAX_KM_FROM_MIDDLE = 30  # default reach: pins farther than this from the group are dropped as unreliable
 
 
 def _km(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -85,12 +85,12 @@ def _km(a: tuple[float, float], b: tuple[float, float]) -> float:
     return 12742 * math.asin(math.sqrt(min(1, h)))
 
 
-def _coords(v: dict, near: tuple[float, float] | None) -> tuple[float | None, float | None]:
+def _coords(v: dict, near: tuple[float, float] | None, reach_km: float = MAX_KM_FROM_MIDDLE) -> tuple[float | None, float | None]:
     try:
         lat, lng = float(v.get("latitude")), float(v.get("longitude"))
     except (TypeError, ValueError):
         return None, None
-    if not (-90 <= lat <= 90 and -180 <= lng <= 180) or (near and _km(near, (lat, lng)) > MAX_KM_FROM_MIDDLE):
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180) or (near and _km(near, (lat, lng)) > reach_km):
         return None, None
     return round(lat, 6), round(lng, 6)
 
@@ -109,6 +109,7 @@ class VenueRequest:
     local_time: str  # e.g. "Sunday 2027-01-17 18:00 (America/New_York)"
     activity: str
     interests: list[str] = field(default_factory=list)
+    reach_km: float = MAX_KM_FROM_MIDDLE  # how far from the midpoint a place may be (grows when the group is spread out)
 
 
 @dataclass
@@ -161,7 +162,8 @@ def _reservation(url, source_host: str | None) -> str | None:
     return None
 
 
-def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, float] | None = None) -> list[dict]:
+def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, float] | None = None,
+             reach_km: float = MAX_KM_FROM_MIDDLE) -> list[dict]:
     """Public categories only, no homes/hotels, dedupe by name, max 3, verified only with a grounded source URL."""
     out, seen = [], set()
     for v in raw if isinstance(raw, list) else []:
@@ -181,7 +183,7 @@ def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, f
         source = v.get("source_url")
         source = source.strip()[:500] if _host(source) else None
         verified = bool(searched and source and norm_url(source) in grounded)
-        lat, lng = _coords(v, near) if verified else (None, None)
+        lat, lng = _coords(v, near, reach_km) if verified else (None, None)
         out.append({
             "name": name, "area": area, "category": category,
             "why": strip_coordinates(str(v.get("why") or ""))[:400],
@@ -196,6 +198,9 @@ def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, f
         if len(out) == MAX_OPTIONS:
             break
     return out
+
+
+FALLBACK_NAMES = {n for n, _, _ in FALLBACK}
 
 
 def fallback_options() -> list[dict]:
@@ -292,12 +297,13 @@ class VenueAgent:
         """Fast path (a few seconds): Google finds real places near the middle, Muse (no web search) picks 3 and says why."""
         seen, cands = set(), []
         for query in (f"{req.activity} in {req.city}", f"{_extra_query(req.activity)} in {req.city}"):
-            for c in gplaces.search(query, key, req.midpoint, radius_km=12, n=10):
-                if c["id"] in seen or c["name"].casefold() in avoid or (req.midpoint and gplaces.km(req.midpoint, (c["lat"], c["lng"])) > MAX_KM_FROM_MIDDLE):
+            for c in gplaces.search(query, key, req.midpoint, radius_km=min(max(12, req.reach_km / 2), 50), n=10):
+                if c["id"] in seen or c["name"].casefold() in avoid or not gplaces.near_enough(c, req.midpoint, req.reach_km, req.city):
                     continue
                 seen.add(c["id"])
                 cands.append(c)
         if len(cands) < MAX_OPTIONS:
+            log.info("google found %d usable places near the group; using web search", len(cands))
             return None
         cands.sort(key=lambda c: _quality(c, req.midpoint), reverse=True)
         cands = cands[:12]
@@ -348,7 +354,7 @@ class VenueAgent:
             )
             searched, grounded = _grounded_urls(resp)
             text = answer_text(resp)
-            options = validate(parse_json(text).get("venues", []) if text else [], grounded, searched, req.midpoint)
+            options = validate(parse_json(text).get("venues", []) if text else [], grounded, searched, req.midpoint, req.reach_km)
         except Exception as exc:  # network, schema, parse: fall back honestly
             log.warning("venue agent failed: %s", type(exc).__name__)
             return VenueResult(fallback_options(), "fallback")

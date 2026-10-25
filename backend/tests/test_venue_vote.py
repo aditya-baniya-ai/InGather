@@ -1,10 +1,12 @@
 """Venue rating: midpoint privacy, auth, 1-10 ratings, average + tie-break, version bump, more places, locations, .ics."""
 
 from types import SimpleNamespace
+from uuid import UUID
 
 import pytest
 
 from app.ai.venues import VenueAgent, VenueRequest, validate
+from app.config import get_settings
 from app.services.geo import coarse, midpoint
 from app.services.venue_votes import pick_winner
 from tests.ai.fakes import FakeMuse, answer
@@ -165,7 +167,7 @@ def test_locations_are_opt_in_rounded_group_only_and_move_the_midpoint(users, as
     assert other["people"][0]["is_me"] is False and other["i_shared_location"] is False
     assert as_user(users["eve"]).put(f"/api/proposals/{pid}/location", {"latitude": 1, "longitude": 1}).status_code == 404
     assert alice.put(f"/api/proposals/{pid}/location", {"latitude": 91, "longitude": 0}).status_code == 422
-    proposal = db.get(Proposal, __import__("uuid").UUID(pid))
+    proposal = db.get(Proposal, UUID(pid))
     assert VenueVoting(db, settings).request_for(proposal).midpoint is not None
     assert alice.delete(f"/api/proposals/{pid}/location").json()["people"] == []
 
@@ -358,3 +360,31 @@ def test_web_search_picks_get_google_details_or_a_checked_osm_pin(group, monkeyp
     assert opts["Near Cafe"]["place"]["rating"] == 4.6 and opts["Near Cafe"]["latitude"] == 39.952
     assert (opts["Lost Cafe"]["latitude"], opts["Lost Cafe"]["longitude"]) == (39.97, -75.14) and opts["Lost Cafe"]["place"] is None
     assert tried[:2] == ["Lost Cafe, 1 Elm St", "1 Elm St"]
+
+
+def test_a_far_away_member_still_gets_places_with_pins_in_the_plan_city(settings, google, monkeypatch):
+    """Someone sharing from ~45 km away moves the middle out of town: places in the plan's city still count."""
+    from app.services import gplaces
+
+    far_mid = VenueRequest(city="Philadelphia", midpoint=(40.35, -75.16), local_time="Sunday 18:00", activity="Coffee")
+    result = VenueAgent(None, settings).suggest(far_mid)
+    assert result.source == "google" and len(result.options) == 3 and all(o["latitude"] for o in result.options)
+    assert "Far Cafe" not in [o["name"] for o in result.options]  # New York: not near, not in the city
+    hit = gplaces.summarize(gplace("z", "Zed Cafe", 39.95, -75.16))
+    assert gplaces.near_enough(hit, (40.35, -75.16), 30, "Philadelphia")  # "... Main St, Philadelphia" is in the city
+    assert not gplaces.near_enough(hit, (40.35, -75.16), 30, "Pittsburgh")
+
+
+def test_spread_out_group_widens_the_reach(group, users, db):
+    from app.models import Proposal
+    from app.services.venue_votes import VenueVoting
+
+    apis, pid = group
+    near = VenueVoting(db, get_settings()).request_for(db.get(Proposal, UUID(pid)))
+    assert near.reach_km == 30
+    assert apis["alice"].put(f"/api/proposals/{pid}/location", {"latitude": 39.95, "longitude": -75.16}).status_code == 200
+    names = [n for n in apis if n != "alice"]
+    assert apis[names[0]].put(f"/api/proposals/{pid}/location", {"latitude": 40.45, "longitude": -75.16}).status_code == 200  # ~55 km north
+    db.expire_all()
+    wide = VenueVoting(db, get_settings()).request_for(db.get(Proposal, UUID(pid)))
+    assert wide.reach_km > 40

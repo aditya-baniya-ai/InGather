@@ -20,7 +20,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.muse import MuseClient
-from app.ai.venues import VenueAgent, VenueRequest
+from app.ai.venues import FALLBACK_NAMES, MAX_KM_FROM_MIDDLE, VenueAgent, VenueRequest
 from app.config import Settings
 from app.models import MeetupLocation, MemberStatus, Plan, Proposal, ProposalStatus, User, VenueOption, VenuePoll, VenueRating, now
 from app.services import gplaces
@@ -173,6 +173,8 @@ class VenueVoting:
         shared = {x.user_id: coarse(x.latitude, x.longitude) for x in self.locations(proposal)}
         points = [shared.get(u.id) or ((u.home_lat, u.home_lng) if u.home_lat is not None and u.home_lng is not None else None) for u in people]
         mid = midpoint([p for p in points if p])
+        # A spread-out group (someone sharing from another town) needs a wider search than a 30 km circle.
+        spread = max((gplaces.km(mid, p) for p in points if p), default=0) if mid else 0
         common = set(people[0].interests or []) if people else set()
         for u in people[1:]:
             common &= set(u.interests or [])
@@ -180,7 +182,8 @@ class VenueVoting:
         local = as_utc(proposal.start_at).astimezone(ZoneInfo(plan.timezone))
         end = as_utc(proposal.end_at).astimezone(ZoneInfo(plan.timezone)) if proposal.end_at else local + timedelta(minutes=90)
         when = f"{local:%A %Y-%m-%d %H:%M}-{end:%H:%M} ({plan.timezone})"
-        return VenueRequest(city=plan.city, midpoint=mid, local_time=when, activity=proposal.activity_title, interests=interests)
+        return VenueRequest(city=plan.city, midpoint=mid, local_time=when, activity=proposal.activity_title, interests=interests,
+                            reach_km=max(MAX_KM_FROM_MIDDLE, spread + 15))
 
     def _fill(self, poll: VenuePoll, proposal: Proposal, avoid: set[str] = frozenset()) -> None:
         req = self.request_for(proposal)
@@ -188,29 +191,30 @@ class VenueVoting:
         fresh = [o for o in result.options if o["name"].casefold() not in avoid or not o["verified"]][:3]
         poll.source = result.source
         city = self.db.get(Plan, proposal.plan_id).city
-        todo = [i for i, o in enumerate(fresh) if o["verified"] and not o.get("place")]
+        named = [i for i, o in enumerate(fresh) if not o.get("place") and o["name"] not in FALLBACK_NAMES]  # real names, not generic kinds
         key = self.settings.google_maps_api_key
-        if key and todo:  # web-search picks: exact pin, photos, rating and hours from Google, looked up in parallel
+        if key and named:  # web-search picks: exact pin, photos, rating and hours from Google, looked up in parallel
             with ThreadPoolExecutor(max_workers=3) as pool:
-                found = list(pool.map(lambda i: gplaces.lookup(fresh[i]["name"], fresh[i]["area"], city, key, req.midpoint), todo))
-            for i, hit in zip(todo, found):
-                if hit:
-                    fresh[i] = {**fresh[i], "latitude": hit["lat"], "longitude": hit["lng"], "area": fresh[i]["area"] or hit["address"], "place": hit}
+                found = list(pool.map(lambda i: gplaces.lookup(fresh[i]["name"], fresh[i]["area"], city, key, req.midpoint, req.reach_km + 20), named))
+            for i, hit in zip(named, found):
+                if hit:  # Google Maps knows this exact place near the group: that verifies it too
+                    fresh[i] = {**fresh[i], "latitude": hit["lat"], "longitude": hit["lng"], "area": fresh[i]["area"] or hit["address"], "place": hit,
+                                "verified": True, "source_url": fresh[i]["source_url"] or hit.get("maps_url")}
         for i, o in enumerate(fresh):
-            if o["verified"] and o.get("latitude") is None:  # no key, or Google didn't know it: pin it from OpenStreetMap
-                pin = self._geocode(o, city, req.midpoint)
+            if o["name"] not in FALLBACK_NAMES and o.get("latitude") is None:  # no key, or Google didn't know it: pin it from OpenStreetMap
+                pin = self._geocode(o, city, req.midpoint, req.reach_km + 20)
                 if pin:
                     fresh[i] = {**o, "latitude": pin[0], "longitude": pin[1]}
         for rank, o in enumerate(fresh, start=1):
             poll.options.append(VenueOption(round=poll.round, rank=rank, **o))
         self.db.flush()
 
-    def _geocode(self, o: dict, city: str, near: tuple[float, float] | None) -> tuple[float, float] | None:
+    def _geocode(self, o: dict, city: str, near: tuple[float, float] | None, max_km: float = 50) -> tuple[float, float] | None:
         """Try the full address, then the street address alone, then name + city; reject pins far from the group."""
         queries = [f"{o['name']}, {o['area']}" if o.get("area") else None, o.get("area"), f"{o['name']}, {city}"]
         for q in dict.fromkeys(q for q in queries if q):
             pin = geocode_place(q, self.settings.venue_search_enabled)
-            if pin and (not near or gplaces.km(near, pin) <= MAX_PIN_KM):
+            if pin and (not near or gplaces.km(near, pin) <= max(MAX_PIN_KM, max_km)):
                 return pin
         return None
 
