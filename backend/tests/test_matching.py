@@ -22,13 +22,27 @@ def test_alice_finds_at_least_four_opted_in_candidates(users, plan_of, matching)
     assert not found & {"Alice", "Eve", "Noah", "Diego"}  # self, blocked, private_browse, other city
 
 
-def test_rank_is_transparent_and_puts_best_fit_first(users, plan_of, matching):
+def test_matcher_ranks_best_fit_first(users, plan_of, matching):
     cands = matching.find_candidates(plan_of(users["alice"]), set(), 12)
+    # Maya and Jordan: same conference, most shared interests. Sofia: shares coffee and city exploring.
     assert [c.display_name for c in cands[:3]] == ["Maya", "Jordan", "Sofia"]
-    assert cands == sorted(cands, key=lambda c: -c.score)
+    assert cands == sorted(cands, key=lambda c: -c.score) and all(0 < c.score < 1 for c in cands)
     maya = cands[0]
     assert maya.shared_interests == ["tech", "food", "city exploring"]
     assert not hasattr(maya, "goal_text") and not hasattr(maya, "windows")
+
+
+def test_eligible_is_unscored_and_stable(users, plan_of, matching):
+    pool = matching.eligible(plan_of(users["alice"]), set())
+    assert [c.display_name for c in pool] == sorted(c.display_name for c in pool) and all(c.score == 0 for c in pool)
+    assert {c.display_name for c in pool} == names(matching.find_candidates(plan_of(users["alice"]), set(), 99))
+
+
+def test_note_interests_change_the_ranking(users, plan_of, matching):
+    plan = plan_of(users["alice"])
+    before = {c.display_name: c.score for c in matching.find_candidates(plan, set(), 12)}
+    after = {c.display_name: c.score for c in matching.find_candidates(plan, set(), 12, extra_interests=["jazz", "live music"])}
+    assert after["Marcus"] > before["Marcus"]  # Marcus is into jazz
 
 
 def test_excluded_users_are_skipped(users, plan_of, matching):

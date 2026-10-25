@@ -1,56 +1,34 @@
-import { CalendarClock, ClipboardCheck, MapPinned, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { BrainCircuit, CalendarClock, MapPinned, ShieldCheck, Workflow, type LucideIcon } from "lucide-react";
 import type { AgentName, Run, RunEvent } from "./api";
 
+/** The gather pipeline's steps, in the order they run. The Matcher is an ML model; the rest is plain server code. */
 export const AGENTS: Record<AgentName, { label: string; icon: LucideIcon; role: string }> = {
-  orchestrator: { label: "Orchestrator", icon: Workflow, role: "Coordinates the agents and makes the final, validated proposal" },
-  matchmaker: { label: "Matchmaker", icon: UsersRound, role: "Finds eligible, opted-in people" },
-  scheduler: { label: "Scheduler", icon: CalendarClock, role: "Checks the group has free time in common" },
-  planner: { label: "Planner", icon: MapPinned, role: "Picks the activity and a public place" },
-  reviewer: { label: "Reviewer", icon: ClipboardCheck, role: "Checks the draft against the policy" },
+  gather: { label: "Gather", icon: Workflow, role: "Runs the steps and saves the proposal for your approval" },
+  matcher: { label: "Matcher", icon: BrainCircuit, role: "ML model that scores how well each eligible person fits your plan" },
+  scheduler: { label: "Scheduler", icon: CalendarClock, role: "Picks the best group that shares an hour of free time" },
+  venue: { label: "Venue", icon: MapPinned, role: "Picks the nearest fitting public place" },
+  checks: { label: "Checks", icon: ShieldCheck, role: "Confirms the place is public, everyone is free and nobody excluded is included" },
 };
-export const AGENT_ORDER: AgentName[] = ["orchestrator", "matchmaker", "scheduler", "planner", "reviewer"];
-/** Agents in the same stage run in parallel. */
-const STAGE: Record<AgentName, number> = { orchestrator: 0, matchmaker: 1, scheduler: 2, planner: 2, reviewer: 3 };
+export const AGENT_ORDER: AgentName[] = ["gather", "matcher", "scheduler", "venue", "checks"];
 
-/** Agents with no tools: their single note is their finished output. */
-const TOOLLESS = new Set<AgentName>(["planner"]);
+export type AgentState = "waiting" | "working" | "done" | "passed" | "failed";
 
-export type AgentState = "waiting" | "working" | "done" | "approved" | "sent_back";
+/** Steps logged by older runs (the former agent orchestra) have names the UI no longer knows. */
+export const isStep = (name: string | null | undefined): name is AgentName => !!name && name in AGENTS;
 
-/** Who a reviewer verdict is about. "Sent back to <agent>: …" names one; "Approved: …" applies to the agent it names, else to all. */
-export function reviewVerdict(e: RunEvent): { approved: boolean; target: AgentName | null; reason: string } {
-  const sent = /^sent back to (\w+)\s*:?\s*/i.exec(e.summary);
-  if (sent) {
-    const name = sent[1].toLowerCase() as AgentName;
-    return { approved: false, target: name in AGENTS ? name : null, reason: e.summary.slice(sent[0].length) };
-  }
-  const rest = e.summary.replace(/^approved\s*:?\s*/i, "");
-  const named = /^(matchmaker|scheduler|planner)\b\s*[—–:-]?\s*/i.exec(rest);
-  return { approved: true, target: named ? (named[1].toLowerCase() as AgentName) : null, reason: named ? rest.slice(named[0].length) : rest };
-}
-
-/** Each agent's current state, derived only from the logged events (no hidden client state). */
+/** Each step's current state, derived only from the logged events (no hidden client state). */
 export function agentStates(events: RunEvent[], status: Run["status"]): Record<AgentName, AgentState> {
   const sorted = [...events].sort((a, b) => a.seq - b.seq);
-  const last: Partial<Record<AgentName, number>> = {};
-  for (const e of sorted) if (e.agent) last[e.agent] = e.seq;
-  const out = {} as Record<AgentName, AgentState>;
-  for (const a of AGENT_ORDER) {
-    const mine = last[a];
-    if (mine === undefined) {
-      // The toolless Planner logs only when it finishes; it's busy as soon as its parallel peer starts.
-      out[a] = a === "planner" && status === "running" && last.scheduler !== undefined ? "working" : "waiting";
-      continue;
-    }
-    if (a === "orchestrator") { out[a] = status === "running" ? "working" : "done"; continue; }
-    const later = sorted.filter((e) => e.seq > mine);
-    // Done once a different stage has spoken after it (parallel peers don't count), or, for the toolless Planner, once it has spoken.
-    const movedOn = TOOLLESS.has(a) || later.some((e) => e.agent && STAGE[e.agent] !== STAGE[a]);
-    out[a] = status === "running" && !movedOn ? "working" : "done";
-    if (a !== "reviewer") {
-      const verdict = later.filter((e) => e.kind === "review").map(reviewVerdict).filter((v) => v.target === a || (v.approved && v.target === null)).at(-1);
-      if (verdict) out[a] = verdict.approved ? "approved" : "sent_back";
-    }
+  const steps = AGENT_ORDER.filter((a) => a !== "gather");
+  const seen = steps.filter((a) => sorted.some((e) => e.agent === a));
+  const current = seen.at(-1);
+  const out = { gather: status === "running" ? "working" : "done" } as Record<AgentName, AgentState>;
+  for (const a of steps) {
+    const mine = sorted.filter((e) => e.agent === a);
+    if (!mine.length) out[a] = "waiting";
+    else if (mine.some((e) => e.kind === "error")) out[a] = "failed";
+    else if (a === "checks" && mine.some((e) => e.kind === "review")) out[a] = "passed";
+    else out[a] = status === "running" && a === current ? "working" : "done";
   }
   return out;
 }

@@ -1,4 +1,4 @@
-"""Gate in front of the Gather Agent: every run (user, pass, decline, feedback) goes through the same checks."""
+"""Gate in front of the Gather engine: every run (user, pass, decline, feedback) goes through the same checks."""
 
 import importlib
 from collections.abc import Iterable
@@ -16,12 +16,12 @@ FEEDBACK_HINTS = {
     "prefer_group": "The owner prefers a larger group.",
     "different_activity": "The owner would like a different kind of activity.",
     "schedule": "The owner wants a better schedule fit.",
-}
+}  # the engine reads these back from the run's goal to adjust the search (app/services/gather.py)
 
 
-def orchestrator():
-    """Imported lazily so the services work (and are testable) independently of app.ai."""
-    return importlib.import_module("app.ai.orchestrator")
+def engine():
+    """Imported lazily so tests can swap in a stand-in engine."""
+    return importlib.import_module("app.services.gather")
 
 
 class AgentRuns:
@@ -39,8 +39,8 @@ class AgentRuns:
 
     def start(self, owner: User, plan: Plan, trigger: str, goal: str = "", excluded: Iterable[UUID] = ()) -> AgentRun:
         self.check(owner, plan)
-        return orchestrator().start_run(self.db, owner, plan, trigger, goal=goal, excluded=set(excluded))
+        return engine().start_run(self.db, owner, plan, trigger, goal=goal, excluded=set(excluded))
 
     @staticmethod
     def run_in_background(run_id: UUID) -> None:
-        orchestrator().run_in_background(run_id)
+        engine().run_in_background(run_id)

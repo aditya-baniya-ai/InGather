@@ -1,0 +1,104 @@
+{
+  "version": "matcher-1",
+  "trained_at": "2026-10-25T02:15:29+00:00",
+  "sklearn": "1.9.1",
+  "seed": 7,
+  "features": [
+    "shared",
+    "jaccard",
+    "coverage",
+    "centroid_cos",
+    "best_match",
+    "best_match_rev",
+    "known_frac",
+    "same_activity",
+    "same_intent",
+    "same_event",
+    "overlap_hours"
+  ],
+  "trees": 114,
+  "vocabulary": 5000,
+  "embedding_dim": 64,
+  "context_prior": {
+    "bias": -1.0,
+    "same_activity": 1.2,
+    "same_intent": 0.5,
+    "same_event": 0.9,
+    "overlap_4h": 1.4
+  },
+  "data": {
+    "source": "Meetup.com dataset, Liu et al. KDD 2012 (github.com/wuyuehit/meetup_dataset)",
+    "sha256": {
+      "tag_text.csv": "34c711f6f3236396",
+      "group_tag.csv": "d82cd5b7839f96b8",
+      "user_tag.csv": "d94fb78250171817",
+      "user_group.csv": "0b45ea91e08be4c7"
+    }
+  },
+  "real_interest_eval": {
+    "examples": 299987,
+    "groups": 15000,
+    "positive_rate": 0.5,
+    "old_rule_shared_interests": {
+      "auc": 0.5688,
+      "precision_at_5": 0.6175
+    },
+    "logistic_regression": {
+      "auc": 0.6687,
+      "log_loss": 0.6476,
+      "brier": 0.2281,
+      "ece": 0.0042,
+      "precision_at_5": 0.7163
+    },
+    "gradient_boosting": {
+      "auc": 0.6712,
+      "log_loss": 0.6464,
+      "brier": 0.2275,
+      "ece": 0.0019,
+      "precision_at_5": 0.716
+    },
+    "leak_check_other_interests_only": {
+      "auc": 0.6279,
+      "log_loss": 0.668,
+      "brier": 0.2376,
+      "ece": 0.0019,
+      "precision_at_5": 0.6565
+    }
+  },
+  "held_out_eval": {
+    "train_examples": 239987,
+    "test_examples": 60000,
+    "iterations": 114,
+    "positive_rate": 0.3804,
+    "old_rule": {
+      "auc": 0.6155,
+      "precision_at_5": 0.514
+    },
+    "matcher": {
+      "auc": 0.6688,
+      "log_loss": 0.6218,
+      "brier": 0.2161,
+      "ece": 0.0026,
+      "precision_at_5": 0.5796
+    },
+    "matcher_vs_real_interest_label": {
+      "auc": 0.6399,
+      "log_loss": 0.6969,
+      "brier": 0.2498,
+      "ece": 0.1193,
+      "precision_at_5": 0.6756
+    }
+  },
+  "similarity_probes": {
+    "ai ~ machine learning": 0.877,
+    "ai ~ data science": 0.79,
+    "hiking ~ camping": 0.975,
+    "coffee ~ brunch": 0.82,
+    "jazz ~ live music": 0.864,
+    "museums ~ art": 0.861,
+    "startups ~ entrepreneurs": 0.886,
+    "ai ~ knitting": -0.012
+  },
+  "export_max_abs_diff": 1.1102230246251565e-16,
+  "seconds": 233
+}

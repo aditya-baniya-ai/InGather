@@ -12,9 +12,7 @@ class Settings(BaseSettings):
     meta_voice_model: str = "muse-voice-transcribe-1.0"
     meta_model_base_url: str = "https://api.meta.ai/v1"
     meta_model_timeout_seconds: int = 60
-    agent_max_tool_rounds: int = 6
-    agent_max_candidates: int = 12
-    agent_reasoning_effort: str = "minimal"  # minimal|low|medium|high; minimal measured ~29s vs ~40s (low) per orchestra run
+    intake_reasoning_effort: str = "minimal"  # minimal|low|medium|high, for the plan intake draft
 
     app_env: str = "development"
     demo_mode: bool = True

@@ -9,7 +9,8 @@ export type MemberStatus = "suggested" | "passed" | "invited" | "accepted" | "de
 export type ViewerRole = "owner" | "invitee" | "member";
 export type Feedback = "prefer_same_event" | "prefer_group" | "different_activity" | "schedule";
 export type EventKind = "tool" | "model" | "system" | "error" | "review";
-export type AgentName = "orchestrator" | "matchmaker" | "scheduler" | "planner" | "reviewer";
+/** Steps of the gather pipeline (app/services/gather.py). Older runs may carry other names. */
+export type AgentName = "gather" | "matcher" | "scheduler" | "venue" | "checks";
 
 export interface Me {
   id: string;
@@ -58,13 +59,14 @@ export interface Plan extends PlanIn {
   latest_run_id: string | null;
 }
 
-export interface RunEvent { seq: number; kind: EventKind; agent?: AgentName | null; tool_name: string | null; summary: string; created_at: string }
+export interface RunEvent { seq: number; kind: EventKind; agent?: string | null; tool_name: string | null; summary: string; created_at: string }
 export interface Run {
   id: string;
   plan_id: string;
   proposal_id: string | null;
   trigger: string;
-  mode: "live" | "offline";
+  /** "ml" = the InGather matcher; "live"/"offline" only on runs from before the matcher. */
+  mode: "ml" | "live" | "offline";
   status: "running" | "completed" | "failed";
   summary: string | null;
   error: string | null;
@@ -313,7 +315,10 @@ const DETAIL_COPY: Record<string, string> = {
   ai_unavailable: "This AI feature is unavailable right now.",
   draft_failed: "The Intake agent couldn't draft that. Try rephrasing it, or fill the form manually.",
   stripe_unavailable: "Stripe Identity isn't set up on this server.",
-  review_rejected: "The Reviewer agent rejected the draft twice, so nothing was proposed.",
+  no_suitable_group: "No compatible group is free right now. Try again later or widen your times.",
+  checks_failed: "The safety checks didn't pass, so nothing was proposed.",
+  propose_failed: "The group changed while it was being saved. Try again.",
+  internal_error: "Something went wrong while finding a group.",
 };
 
 /** Friendly copy for a backend detail code (or the code itself). */

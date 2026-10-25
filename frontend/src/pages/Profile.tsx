@@ -131,7 +131,7 @@ export function Profile() {
             <Switch checked={me.group_only} onChange={(v) => update.mutate({ group_only: v })} disabled={update.isPending}
               label="Group meetups only" description="Never suggest 1:1 meetups with people you haven't met." />
           </Panel>
-          <p className="mt-3 text-[13.5px] text-muted">How AI uses your data: only for plans where you turned on AI processing, the agent sends minimized details (activity, city, dates, broad interests, your goal text) to Muse Spark. Exact times, email and identity data are never sent. Cancelled plans stop all matching right away; information already shared with a group can't be taken back.</p>
+          <p className="mt-3 text-[13.5px] text-muted">How AI uses your data: only for plans where you turned on AI processing, InGather's own matching model scores your plan against other opted-in plans on our server; nothing is sent to an outside AI model for matching. Text you choose to have drafted with “Describe it” goes to Meta's Muse Spark. Exact times, email and identity data are never shown to anyone. Cancelled plans stop all matching right away; information already shared with a group can't be taken back.</p>
         </Section>
 
         <Section id="s-blocks" title="Blocked accounts" description="Blocked people are never matched or invited with you, and aren't told.">

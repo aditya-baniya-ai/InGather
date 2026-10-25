@@ -11,7 +11,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.ai.muse import MuseClient
-from app.ai.orchestra.intake import IntakeAgent
+from app.ai.intake import IntakeAgent
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import ConnectorToken, Plan, User, now

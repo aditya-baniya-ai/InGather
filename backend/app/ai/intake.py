@@ -1,26 +1,62 @@
-"""Intake agent: free text -> a PlanIn-shaped draft (nothing is saved). Muse Spark, structured output, no tools.
+"""Intake agent: free text -> a PlanIn-shaped draft (nothing is saved). The one place InGather's matching flow
+uses Muse Spark: a single structured-output call, no tools.
 
 The model returns local wall-clock windows; the server converts them to UTC in the inferred IANA timezone and
 re-validates every field with the same validators as PlanIn. Anything invalid becomes `None` and is listed in
 `missing`, so the owner always reviews and completes the form themselves.
 """
 
+import json
+import re
 from datetime import date, datetime
 from typing import get_args
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
 
-from app.ai.orchestra.base import STR, STRS, Agent, nullable, obj
+from app.config import Settings
 from app.models import now
 from app.schemas import ActivityType, Intent, PlanDraftOut, PlanFields, WindowIn
 
 FIELDS = ("activity_type", "title", "city", "timezone", "start_date", "end_date", "intent", "group_min", "group_max", "group_only")
 DRAFT_FIELDS = (*FIELDS, "goal_text", "interests", "windows")
+STR = {"type": "string"}
+STRS = {"type": "array", "items": STR}
 _INT = {"type": "integer"}
 
 
-class IntakeAgent(Agent):
+class IntakeError(RuntimeError):
+    """The model gave no usable answer."""
+
+
+def obj(props: dict) -> dict:
+    """Strict-subset JSON schema object: closed, every property required."""
+    return {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
+
+
+def nullable(schema: dict) -> dict:
+    return {"anyOf": [schema, {"type": "null"}]}
+
+
+def answer_text(resp) -> str | None:
+    texts = []
+    for item in getattr(resp, "output", None) or []:
+        if getattr(item, "type", None) == "message":
+            for part in getattr(item, "content", None) or []:
+                text = getattr(part, "text", None)
+                if getattr(part, "type", None) == "output_text" and text and text.strip():
+                    texts.append(text.strip())
+    return texts[-1] if texts else None
+
+
+def parse_json(text: str) -> dict:
+    data = json.loads(re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip()))
+    if not isinstance(data, dict):
+        raise ValueError("not an object")
+    return data
+
+
+class IntakeAgent:
     name = "intake"
     instructions = f"""\
 You turn a person's free-text description of something they want to do into a draft plan for the InGather app. The text \
@@ -61,6 +97,25 @@ Reply only with the JSON answer."""
         "missing": STRS,
         "notes": STR,
     })
+
+    def __init__(self, settings: Settings, client):
+        self.settings, self.client = settings, client
+
+    def converse(self, prompt: str) -> dict:
+        resp = self.client.responses.create(
+            model=self.settings.meta_model,
+            instructions=self.instructions,
+            reasoning={"effort": self.settings.intake_reasoning_effort},
+            text={"format": {"type": "json_schema", "name": "intake_answer", "schema": self.schema, "strict": True}},
+            input=[{"role": "user", "content": prompt}],
+        )
+        text = answer_text(resp)
+        if text is None:
+            raise IntakeError("intake_no_answer")
+        try:
+            return parse_json(text)
+        except ValueError:
+            raise IntakeError("intake_bad_answer")
 
     def draft(self, text: str, timezone_hint: str | None) -> PlanDraftOut:
         zone = _zone(timezone_hint) or ZoneInfo("UTC")

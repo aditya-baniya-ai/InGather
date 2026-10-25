@@ -61,7 +61,7 @@ class Proposals:
         ids = [UUID(str(uid)) for uid, _ in picks]
         if not ids or len(set(ids)) != len(ids):
             raise ValueError("picks must be a non-empty list of distinct users")
-        eligible = {c.user_id for c in self.matching.find_candidates(plan, set(run.excluded_user_ids), limit=10_000)}
+        eligible = {c.user_id for c in self.matching.eligible(plan, set(run.excluded_user_ids))}
         if any(str(i) not in eligible for i in ids):
             raise ValueError("every pick must be an eligible candidate for this plan")
         proposal = self.open_for(plan)

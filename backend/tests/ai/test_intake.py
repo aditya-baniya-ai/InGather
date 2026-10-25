@@ -3,10 +3,10 @@
 from datetime import date, datetime, timezone
 
 from app.ai import routes
-from app.ai.orchestra.intake import clean_draft
+from app.ai.intake import clean_draft
 from app.services.ratelimit import limiter
 from tests.ai.conftest import bearer
-from tests.ai.fakes import OrchestraClient, answer, say
+from tests.ai.fakes import FakeMuse, answer, say
 
 TEXT = ("I'm planning to go to HackTX from October 24 to October 25 at UT Austin at 10 am and then I'm trying to find "
         "some people who are also going there.")
@@ -43,14 +43,14 @@ def test_invalid_fields_go_to_missing():
 
 
 def test_draft_endpoint_uses_structured_output_without_tools(api, world):
-    client = OrchestraClient(intake=[lambda o, r: [answer(RAW)]])
+    client = FakeMuse([answer(RAW)])
     api.app.dependency_overrides[routes.muse] = lambda: client
     limiter.reset()
     r = api.post("/api/plans/draft", headers=bearer(world["alice"]), json={"text": TEXT, "timezone_hint": "America/Chicago"})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["city"] == "Austin" and body["windows"][0]["starts_at"] == "2026-10-24T15:00:00Z" and body["mode"] == "live"
-    req = client.responses.requests["intake"][0]
+    req = client.responses.requests[0]
     assert "tools" not in req and req["text"]["format"]["type"] == "json_schema"
     prompt = req["input"][0]["content"]
     assert "TODAY: " in prompt and "America/Chicago" in prompt and f"<<<{TEXT}>>>" in prompt
@@ -62,7 +62,7 @@ def test_draft_503_without_key_and_rate_limited(api, world):
     h = bearer(world["alice"])
     r = api.post("/api/plans/draft", headers=h, json={"text": TEXT})
     assert r.status_code == 503 and r.json() == {"detail": "ai_unavailable"}
-    client = OrchestraClient(intake=[lambda o, r: [answer(RAW)]] * 20)
+    client = FakeMuse(*[[answer(RAW)]] * 20)
     api.app.dependency_overrides[routes.muse] = lambda: client
     limiter.reset()
     codes = [api.post("/api/plans/draft", headers=h, json={"text": TEXT}).status_code for _ in range(11)]
@@ -71,7 +71,7 @@ def test_draft_503_without_key_and_rate_limited(api, world):
 
 
 def test_bad_model_answer_is_502(api, world):
-    client = OrchestraClient(intake=[lambda o, r: [say("Sure! Here is your plan.")]])
+    client = FakeMuse([say("Sure! Here is your plan.")])
     api.app.dependency_overrides[routes.muse] = lambda: client
     limiter.reset()
     r = api.post("/api/plans/draft", headers=bearer(world["alice"]), json={"text": TEXT})

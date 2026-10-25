@@ -236,7 +236,7 @@ export function CreatePlan() {
             <span>
               <span className="block font-medium">Let Gather Agent process this plan with AI</span>
               <span className="block text-[13.5px] text-ink/80">
-                Minimized plan details (activity, city, public event location if provided, dates, interests, your goal text) are sent to Meta's Muse Spark model to search and explain matches.
+                InGather's own matching model uses your plan details (activity, city, public event location if provided, dates, free times, interests) on our server to find a compatible group. None of it is sent to an outside AI model for matching.
                 Your exact times, email and identity documents are never sent. You can turn this off anytime.
               </span>
             </span>

@@ -28,7 +28,8 @@ function AgentGuardrails() {
       <h2 className="text-[15px] font-semibold">What your agent can do</h2>
       <ul className="mt-2 flex flex-col gap-1.5">
         <li>Search only opted-in, eligible plans</li>
-        <li>Check if a group's times overlap, without seeing anyone's schedule</li>
+        <li>Score fit with an ML model trained on real group data</li>
+        <li>Check if a group's times overlap, without showing anyone's schedule</li>
         <li>Suggest people and explain why</li>
       </ul>
       <h2 className="mt-4 text-[15px] font-semibold">What it can't do</h2>
@@ -37,7 +38,7 @@ function AgentGuardrails() {
         <li>Confirm a meetup for you</li>
         <li>Show your itinerary to anyone</li>
       </ul>
-      <p className="mt-4 text-[13px] text-muted">These limits are enforced by the server, not by the prompt.</p>
+      <p className="mt-4 text-[13px] text-muted">These limits are enforced by the server's checks, whatever the model scores.</p>
     </div>
   );
 }
@@ -102,7 +103,7 @@ function ConsentCard({ plan }: { plan: Plan }) {
         <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-1 size-4 shrink-0 accent-[var(--color-violet)]" />
         <span className="text-[14px]">
           <span className="block font-medium">Allow AI processing for this plan</span>
-          Minimized plan details are sent to Meta's Muse Spark model to find and explain matches. Your exact times, email and documents are never sent.
+          InGather's own matching model scores this plan against other opted-in plans on our server. Nothing is sent to an outside AI model for matching, and nobody sees your exact times, email or documents.
         </span>
       </label>
       <Button variant="agent" size="sm" className="mt-3" disabled={!checked} loading={busy} onClick={allow}>Allow and continue</Button>

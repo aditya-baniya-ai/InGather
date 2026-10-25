@@ -16,7 +16,7 @@ ROUTERS = [
     "app.api.chats",
     "app.api.safety",
     "app.api.verification",
-    "app.ai.routes",  # voice transcription, cover images
+    "app.ai.routes",  # plan intake drafts, voice transcription, cover images
     "app.ai.connector",  # MCP endpoint for the user's own Muse agent
 ]
 
@@ -30,7 +30,9 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     def health():
-        return {"ok": True, "ai_live": s.ai_live, "demo_mode": s.demo_mode, "model": s.meta_model}
+        from app.ml.model import load_matcher
+
+        return {"ok": True, "ai_live": s.ai_live, "demo_mode": s.demo_mode, "model": s.meta_model, "matcher": load_matcher().version}
 
     for name in ROUTERS:
         app.include_router(importlib.import_module(name).router)

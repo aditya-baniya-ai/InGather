@@ -14,13 +14,13 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.ai.orchestrator import run_in_background, start_run
 from app.ai.routes import hash_token
 from app.config import Settings, get_settings
 from app.db import get_db
 from app.models import (
     AgentRun, ConnectorToken, MemberStatus, Plan, PlanStatus, Proposal, ProposalMember, ProposalStatus, User,
 )
+from app.services.gather import run_in_background, start_run
 
 router = APIRouter(tags=["connector"])
 
@@ -42,7 +42,7 @@ TOOLS = [
      "annotations": {"readOnlyHint": True}},
     {"name": "get_plan_status", "description": "Status of one of the user's plans: latest group proposal (counts only) and latest agent run.",
      "inputSchema": _PLAN_ARG, "annotations": {"readOnlyHint": True}},
-    {"name": "ask_gather_agent", "description": "Ask InGather's Gather Agent to find a compatible group for one of the user's plans. "
+    {"name": "ask_gather_agent", "description": "Ask InGather's Gather Agent (the InGather matcher, a machine-learning model) to find a compatible group for one of the user's plans. "
      "It only proposes; nobody is invited until the user approves in the app. Requires AI consent on the plan.",
      "inputSchema": _PLAN_ARG, "annotations": {"readOnlyHint": False, "destructiveHint": False}},
     {"name": "list_my_invitations", "description": "Invitations addressed to the connected user (activity, city, date, group size, host name).",

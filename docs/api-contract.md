@@ -46,9 +46,9 @@ Validation: end_date ≥ start_date, ends_at > starts_at, 2 ≤ group_min ≤ gr
 | POST | /api/agent/runs | `{plan_id, goal?}` | `RunOut` (202). Requires plan.ai_consent (else 409 `{"detail":"ai_consent_required"}`) and `can_discover` (else 403 `{"detail":"not_eligible"}`). Runs in background. |
 | GET | /api/agent/runs/{id} | – | `RunOut` (owner only) — frontend polls every 1s while `status=running` |
 
-`RunOut = {id, plan_id, proposal_id|null, trigger, mode: "live"|"offline", status, summary|null, error|null, model|null, created_at, finished_at|null, events: [{seq, kind:"tool"|"model"|"system"|"error", tool_name|null, summary, created_at}]}`
+`RunOut = {id, plan_id, proposal_id|null, trigger, mode: "ml" (older runs: "live"|"offline"), status, summary|null, error|null, model|null, created_at, finished_at|null, events: [{seq, kind:"tool"|"review"|"system"|"error" (older runs also "model"), agent|null, tool_name|null, summary, created_at}]}`
 
-`mode=offline` means no MODEL_API_KEY: deterministic rules-based matching; UI must label it "Rules-based (offline) — not Muse Spark".
+`mode=ml` means the run used the InGather matcher (`model` = its version, e.g. `matcher-1`), a machine-learning model served on the backend; no LLM is called and MODEL_API_KEY is not needed. See *Gather engine* below.
 
 ## Proposals / invitations — `app/api/proposals.py`
 | Method | Path | Body | Returns |
@@ -132,9 +132,9 @@ class Proposals:
         # group_availability is possible; adds them as `suggested` to the plan's open proposal
         # (creating it if needed, bumping version). Raises ValueError on invalid picks.
 
-# app/ai/orchestrator.py
-class GatherAgent:
-    def __init__(self, db, settings, client=None): ...      # client injectable for tests
+# app/services/gather.py
+class GatherEngine:
+    def __init__(self, db, settings, matching=None): ...    # matching (and its model) injectable for tests
     def run(self, run_id: UUID) -> None                     # executes AgentRun, writes events, saves proposal
 def start_run(db, owner: User, plan: Plan, trigger: str, goal: str = "", excluded: set[UUID] = ()) -> AgentRun
 def run_in_background(run_id: UUID) -> None                 # opens its own Session; used by BackgroundTasks / outbox
@@ -142,7 +142,7 @@ def run_in_background(run_id: UUID) -> None                 # opens its own Sess
 
 ---
 
-# v2 additions (agent orchestra, AI plan intake, verification)
+# v2 additions (AI plan intake, verification; the v2 agent orchestra was replaced by the v3 gather engine)
 
 ## Verification — `app/api/verification.py` + `app/services/identity.py`
 | Method | Path | Body | Returns |
@@ -161,16 +161,15 @@ Body `{text (1-2000), timezone_hint?: IANA}` → `PlanDraftOut` (nothing is save
 `{activity_type|null, title|null, goal_text, city|null, timezone|null, start_date|null, end_date|null, intent|null, interests: [], group_min|null, group_max|null, group_only|null, windows: [{starts_at, ends_at}] (UTC ISO), missing: [field names it could not infer], notes: str (one sentence, e.g. "Assumed 2026 because the dates are upcoming"), mode: "live"}`
 Uses the **Intake agent** (Muse Spark, structured output, no tools), told today's date (server, in timezone_hint) so relative/past dates resolve to the next future occurrence. Validates output through the same rules as `PlanIn` (2≤min≤max≤4, end≥start, known activity types) and drops invalid fields into `missing`. 503 `ai_unavailable` without key. Rate-limited.
 
-## Agent orchestra — `app/ai/orchestra/` (replaces the single-agent loop behind the SAME `start_run` / `run_in_background` / `RunOut` API)
-Separate Muse Spark agents, each with its own instructions and an allowlisted subset of the existing `AgentToolbox` tools:
-1. **matchmaker** — `get_my_plan_context`, `find_eligible_candidates` → shortlist (≤ group_max-1+2 handles) with one reason each.
-2. **scheduler** and 3. **planner** run **in parallel** (threads) on the shortlist:
-   - scheduler — `check_group_availability` → chosen group (subset of shortlist) + a start/end inside a returned window.
-   - planner — no tools → activity_title, venue_category (public allowlist), generic venue_label, icebreaker, explanation draft, from shared interests/activity only.
-4. **reviewer** — no tools; receives the combined draft (handles, reasons, time, venue, explanation) plus the policy checklist; returns per-agent verdicts `{agent, approved, reason}`. If any rejected, the orchestrator re-asks that agent once with the reviewer's feedback, then reviews again. Only an approved draft is passed to `propose_group` (executed by orchestrator code, still fully validated by the toolbox/backend). Reviewer rejection twice → run fails honestly (`review_rejected`).
-Offline (no key): each agent has a deterministic fallback; reviewer runs deterministic checks; events still labeled "Rules-based".
+## Gather engine — `app/services/gather.py` + `app/ml/` (v3: replaces the agent orchestra behind the SAME `start_run` / `run_in_background` / `RunOut` API)
+No LLM. One pass of plain server code around an ML model:
+1. **matcher** — `Matching.fits()` applies the hard filters (opted in, verified, adult, same city and dates, overlapping free time, not blocked, not excluded, not already on a proposal), then scores each person with the **InGather matcher**: gradient-boosted trees over 11 pair features (exact and embedding-based interest similarity, same activity / intent / event, hours of shared free time). Trained by `backend/ml/train.py` on the public Meetup.com dataset plus simulated plan context; see `backend/ml/README.md`. Interests named in the owner's run note (`goal`) are added for that run.
+2. **scheduler** — searches every group of the allowed size among the 10 best-scoring people for one that shares a window of ≥ 60 minutes with the owner (and anyone still on the proposal). Utility = 0.7 × mean owner fit + 0.3 × mean pairwise fit between the people (same model) + small bonuses for size and longer windows. The slot is 90 minutes from the window start, rounded up to the half hour.
+3. **venue** — nearest mapped public place of a kind that suits the activity (cafe for coffee/conference, library for study, …), else a generic public suggestion.
+4. **checks** — group size, nobody excluded or blocked, public venue category and label, slot inside the shared window. Any failure ends the run (`checks_failed`); `Proposals.save_agent_result` then re-validates everything again.
+Replans (`pass`, `decline`, `feedback`) keep people still on the open proposal and fill open slots. Feedback adjusts the search: `prefer_group` (largest feasible group first), `prefer_same_event` (same event location first), `schedule` (a different window than last time), `different_activity` (a different venue kind).
 
-`RunOut.events[]` gains `agent: "orchestrator"|"matchmaker"|"scheduler"|"planner"|"reviewer"|null` and kind `"review"` for reviewer verdicts (summary starts with "Approved:" or "Sent back to <agent>:"). Existing event semantics (kind=tool only for real executions) unchanged.
+`RunOut.events[]`: `agent` is the step (`"gather"|"matcher"|"scheduler"|"venue"|"checks"`; older runs may carry the former agent names), `kind` is `"tool"` for real backend steps (`find_eligible_candidates`, `score_candidates`, `check_group_availability`, `find_nearby_places`, `propose_group`), `"review"` for passed checks (`safety_checks`), `"system"` for notes and `"error"` for failures. Run errors: `plan_inactive`, `no_suitable_group`, `checks_failed`, `propose_failed`, `internal_error`.
 
 ### Public-event venue lookup
 

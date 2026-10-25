@@ -201,13 +201,13 @@ class AgentRun(Base):
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     proposal_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     trigger: Mapped[str] = mapped_column(String(20), default="user")  # user|pass|decline|feedback
-    mode: Mapped[str] = mapped_column(String(10), default="live")  # live (Muse Spark) | offline (rules-based)
+    mode: Mapped[str] = mapped_column(String(10), default="ml")  # ml (InGather matcher); older rows: live|offline
     status: Mapped[RunStatus] = mapped_column(str_enum(RunStatus), default=RunStatus.running)
     goal: Mapped[str] = mapped_column(Text, default="")
     excluded_user_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     summary: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(String(300))
-    model: Mapped[str | None] = mapped_column(String(60))
+    model: Mapped[str | None] = mapped_column(String(60))  # matcher version, e.g. matcher-1
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -215,14 +215,14 @@ class AgentRun(Base):
 
 
 class AgentEvent(Base):
-    """Safe, owner-visible timeline entry. `kind=tool` rows are written only by real tool executions."""
+    """Safe, owner-visible timeline entry. `kind=tool` rows are written only by real backend steps."""
 
     __tablename__ = "agent_events"
     id: Mapped[uuid.UUID] = Id.pk()
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
     kind: Mapped[str] = mapped_column(String(12))  # tool|model|system|error|review
-    agent: Mapped[str | None] = mapped_column(String(20))  # orchestrator|matchmaker|scheduler|planner|reviewer
+    agent: Mapped[str | None] = mapped_column(String(20))  # pipeline step: gather|matcher|scheduler|venue|checks
     tool_name: Mapped[str | None] = mapped_column(String(60))
     summary: Mapped[str] = mapped_column(String(400))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

@@ -67,9 +67,9 @@ def test_connector_auth_and_tools(api, db, world):
 
     res = mcp(api, token, "tools/call", {"name": "ask_gather_agent", "arguments": {"plan_id": str(world["plan"].id)}}).json()["result"]
     started = json.loads(res["content"][0]["text"])
-    assert not res["isError"] and started["status"] == "running" and started["mode"] == "offline"
+    assert not res["isError"] and started["status"] == "running" and started["mode"] == "ml"
     status = json.loads(mcp(api, token, "tools/call", {"name": "get_plan_status", "arguments": {"plan_id": str(world["plan"].id)}}).json()["result"]["content"][0]["text"])
-    assert status["latest_run"] is not None
+    assert status["latest_run"]["mode"] == "ml" and status["latest_run"]["status"] == "completed"
     assert db.query(AgentRun).filter(AgentRun.plan_id == world["plan"].id).count() == 1
 
     assert mcp(api, token, "tools/call", {"name": "approve_invitations", "arguments": {}}).json()["error"]["code"] == -32602

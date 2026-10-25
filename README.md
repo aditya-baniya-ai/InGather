@@ -2,7 +2,7 @@
 
 **Less scrolling. More together.** AI handles the coordination. Humans choose the connection.
 
-InGather is an Instagram-inspired, privacy-first web app for HackTX 2026 (Meta track: *Bringing people closer together with AI*). You privately describe something you want to do, like "I'm at a conference in Philadelphia Jan 17–19 and free after 5pm". A **Meta Muse Spark** agent then finds compatible people who opted in, checks that the whole group has free time in common, and proposes a small group at a public place. It replans when you pass on someone or an invitee declines. Nobody is contacted until you approve, and nothing is confirmed until everyone does.
+InGather is an Instagram-inspired, privacy-first web app for HackTX 2026 (Meta track: *Bringing people closer together with AI*). You privately describe something you want to do, like "I'm at a conference in Philadelphia Jan 17–19 and free after 5pm". The **InGather matcher**, a machine-learning model trained on real Meetup.com group data, finds compatible people who opted in. Plain server code then checks that the whole group has free time in common and proposes a small group at a public place. It replans when you pass on someone or an invitee declines. Nobody is contacted until you approve, and nothing is confirmed until everyone does.
 
 > Independent prototype. Not affiliated with or endorsed by Instagram or Meta. All demo people are fictional, and "verification" in the demo is simulated: no ID is checked.
 
@@ -17,17 +17,38 @@ On startup the container runs the database migrations. When `DEMO_MODE=true` it 
 
 To reset the demo data: `docker compose down -v && docker compose up`.
 
-Without `MODEL_API_KEY` the app still works in a clearly labeled **offline rules-based mode**, which is never presented as Muse Spark.
+Matching never needs `MODEL_API_KEY`: it runs on the server's own model and costs no tokens. The key only turns on the Muse features below ("Describe it", voice, cover images).
 
 ## Meta AI in the product
 
 | Model | Where |
 |---|---|
-| `muse-spark-1.3`: **agent orchestra** (Responses API, tool calling, structured output) | A team of separate Muse Spark agents, each with its own instructions and only its own tools. **Matchmaker** finds compatible people. **Scheduler** (finds a time the whole group has free) and **Planner** (picks the activity, a public venue and an icebreaker) run in parallel. **Reviewer** approves each agent's work or sends it back once, and it also runs hard server checks the model can't override. The conductor proposes the group only after approval. The orchestra replans when you pass on someone or an invitee declines. Every timeline entry marked as a tool call is a real backend execution. |
 | `muse-spark-1.3`: **Intake agent** | "Describe it" mode on Create Plan: it turns a sentence ("HackTX Oct 24–25 at UT Austin from 10am") into a pre-filled form you review. Nothing saves until you do. |
 | `muse-image-1.0` | Plan cover images, generated only from activity, city and interests (no personal data). |
 | `muse-voice-transcribe-1.0` | Speak your plan instead of typing it. |
 | Muse connector (MCP at `/mcp`) | Lets your own Muse agent list your plans, run your Gather Agent and read your invitations, using a revocable token from Profile. It can't approve or confirm anything. |
+
+## Matching: the InGather matcher (ML, no LLM)
+
+Every Gather run is one pass of server code around an ML model (`backend/app/services/gather.py`). Each step appears live in the timeline:
+
+1. **Matcher.** Hard filters first: people who opted in, are verified adults, are in the same city on the same dates, are free when you are, aren't blocked and weren't passed. Then the model scores each person's fit with your plan.
+2. **Scheduler.** It tries every allowed group among the 10 best fits. It keeps the one with the best mix of fit with you, fit between the people, and an hour or more of shared free time.
+3. **Venue.** The nearest mapped public place of a fitting kind, or a generic public suggestion.
+4. **Checks.** Public place, everyone free at that time, group size, nobody excluded or blocked. The proposal service then re-validates everything.
+
+The model is gradient-boosted trees over 11 features: shared interests, similarity in a learned interest space, same activity, intent or event, and hours of shared time. Interests are embedded with vectors learned from 1.76M real Meetup members' topic lists, so "AI" and "machine learning" count as close.
+
+The fit part is trained on 300k real join decisions from the public Meetup.com dataset (Liu et al., KDD 2012). On groups never seen in training:
+
+| | AUC | Top-5 picks who really joined |
+|---|---|---|
+| Old hand-written rule (count shared interests) | 0.57 | 62% |
+| InGather matcher | 0.67 | 72% |
+
+Plan context (activity, intent, same event, free-time overlap) isn't in that dataset, so it is simulated on top. Those weights are assumptions until real InGather outcomes exist to retrain on. Details, the leakage check and how to retrain: [backend/ml/README.md](backend/ml/README.md).
+
+Serving needs only numpy. The trees ship as JSON in `backend/app/ml/artifacts/`, so there are no pickle files.
 
 ## Account verification
 
@@ -44,10 +65,10 @@ Verification confirms identity. It does not mean someone is safe.
 ## Security model (enforced by the backend, not by prompts)
 
 - **One place decides access.** Every access check goes through `backend/app/services/policy.py`. Anyone not allowed to see a plan, proposal, invitation or chat gets a uniform `404`, so its existence isn't revealed.
-- **The agent only reads, inside fixed limits.**
-  - It sees opaque candidate handles and safe preview fields. It never sees other people's schedules, goal text, emails or venues.
-  - Its toolbox only accepts candidates its own earlier search returned, re-checks exclusions and blocks, allows only public venue types, and requires a time inside a window the whole group has free.
-  - Profile text is treated as untrusted data, never as instructions.
+- **Matching stays on the server.**
+  - Other people's schedules, goal text, emails and event locations never leave the matching service. The owner only sees display names, shared interests, a reason and group-level times.
+  - No LLM reads anyone's profile text, so there's nothing to prompt-inject.
+  - The engine only suggests. Fixed checks (public venue types, a time inside a window the whole group has free, exclusions and blocks) run before the proposal service re-validates every pick.
 - **Human consent at every step.**
   - The owner approves invitations for an exact roster and proposal version.
   - Each recipient accepts or declines on their own; a decline is private, and so is a pass.
@@ -59,15 +80,16 @@ Verification confirms identity. It does not mean someone is safe.
 ```bash
 # backend (Python 3.12, uv)
 cd backend && uv sync && uv run python -m app.seed && uv run uvicorn app.main:app --reload --port 8000
-uv run pytest -q                                   # backend tests incl. attacker cases, agent orchestra, verification
+uv run pytest -q                                   # backend tests incl. attacker cases, matcher, gather engine, verification
 uv run python ../scripts/smoke_test_meta.py        # live Meta API check (never prints the key)
+uv run python ml/fetch_data.py && uv run --group train python ml/train.py   # retrain the matcher (~5 min)
 
 # frontend (Vite dev server proxies /api to :8000)
 cd frontend && npm install && npm run dev          # http://localhost:5173
 npm test && npm run build
 ```
 
-Layout: `backend/app/{api,services,ai}` (FastAPI routers, domain services, Muse integrations), `backend/migrations` (Alembic), `frontend/src/{pages,components,lib}`. Binding API: [docs/api-contract.md](docs/api-contract.md). Product spec: [INGATHER_CLAUDE_CODE_BUILD_SPEC.md](INGATHER_CLAUDE_CODE_BUILD_SPEC.md).
+Layout: `backend/app/{api,services,ml,ai}` (FastAPI routers, domain services, the matcher, Muse integrations), `backend/ml` (matcher training), `backend/migrations` (Alembic), `frontend/src/{pages,components,lib}`. Binding API: [docs/api-contract.md](docs/api-contract.md). Product spec: [INGATHER_CLAUDE_CODE_BUILD_SPEC.md](INGATHER_CLAUDE_CODE_BUILD_SPEC.md).
 
 ## Meetup maps and group chat
 
@@ -87,4 +109,4 @@ Keep `DEMO_MODE=true` only for the judged demo. Real-world stranger meetups stay
 
 ## Built with
 
-Claude Code (an orchestra of agents: backend, AI-orchestra, verification and frontend engineers, a reviewer engineer that approves or rejects each piece, plus a manager doing integration), design skills (taste-skill, impeccable, Emil Kowalski's skills), and Playwright and the built-in browser for end-to-end testing. Runtime stack: React + Vite + Tailwind, FastAPI + SQLAlchemy + Alembic, Postgres, and the Meta Model API.
+Claude Code (an orchestra of agents: backend, AI-orchestra, verification and frontend engineers, a reviewer engineer that approves or rejects each piece, plus a manager doing integration), design skills (taste-skill, impeccable, Emil Kowalski's skills), and Playwright and the built-in browser for end-to-end testing. Runtime stack: React + Vite + Tailwind, FastAPI + SQLAlchemy + Alembic, Postgres, numpy for the matcher (trained with scikit-learn), and the Meta Model API.

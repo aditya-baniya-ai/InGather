@@ -1,6 +1,7 @@
 import os
 
-os.environ.update(MODEL_API_KEY="", DEMO_MODE="true", DATABASE_URL="sqlite://", JWT_SECRET="test-secret-test-secret-test-secret-0123")
+os.environ.update(MODEL_API_KEY="", DEMO_MODE="true", DATABASE_URL="sqlite://", JWT_SECRET="test-secret-test-secret-test-secret-0123",
+                  VENUE_SEARCH_ENABLED="false")
 
 import sys  # noqa: E402
 import types  # noqa: E402
@@ -105,7 +106,7 @@ def as_user(client):
 
 
 class FakeAgent:
-    """Deterministic stand-in for app.ai.orchestrator so these tests never depend on the AI module."""
+    """Deterministic stand-in for the gather engine (app.services.gather), so these API tests control who is picked."""
 
     def __init__(self):
         self.started: list[tuple[str, set]] = []
@@ -116,7 +117,7 @@ class FakeAgent:
             plan_id=plan.id,
             owner_id=owner.id,
             trigger=trigger,
-            mode="offline",
+            mode="ml",
             goal=goal,
             excluded_user_ids=sorted(str(x) for x in excluded),
         )
@@ -133,7 +134,9 @@ class FakeAgent:
             current = svc.open_for(plan)
             group = [m.user_id for m in current.members if m.status in ACTIVE and not m.is_initiator] if current else []
             picks = []
-            for c in matching.find_candidates(plan, {UUID(x) for x in run.excluded_user_ids}, 12):
+            # Most shared interests first, then by name: deterministic and independent of the ML model's scores.
+            pool = matching.eligible(plan, {UUID(x) for x in run.excluded_user_ids})
+            for c in sorted(pool, key=lambda c: (-len(c.shared_interests), c.display_name)):
                 if len(group) + len(picks) >= plan.group_max - 1:
                     break
                 if matching.group_availability(plan, group + [p for p, _ in picks] + [UUID(c.user_id)]).possible:
@@ -152,9 +155,9 @@ class FakeAgent:
 @pytest.fixture
 def fake_agent(monkeypatch):
     fake = FakeAgent()
-    module = types.ModuleType("app.ai.orchestrator")
+    module = types.ModuleType("app.services.gather")
     module.start_run, module.run_in_background = fake.start_run, fake.run_in_background
-    monkeypatch.setitem(sys.modules, "app.ai.orchestrator", module)
+    monkeypatch.setitem(sys.modules, "app.services.gather", module)
     return fake
 
 

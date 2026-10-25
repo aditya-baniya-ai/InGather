@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Check, EyeOff, Lock, ShieldCheck, Sparkles, Wrench, type LucideIcon } from "lucide-react";
+import { ArrowRight, Check, EyeOff, Lock, ShieldCheck, Wrench, type LucideIcon } from "lucide-react";
 import { Cover, Wordmark } from "../components/Brand";
 import { DISCLAIMER } from "../components/AppShell";
 import { Avatar, Pill } from "../components/ui";
@@ -15,8 +15,8 @@ const linkBtn = "press inline-flex min-h-11 items-center justify-center gap-2 ro
 /** A real piece of the product, drawn with the product's own components: the agent at work. */
 function AgentPreview() {
   const rows = [
-    { tool: "get_my_plan_context", text: "Read your private plan. It is never shown to anyone else." },
     { tool: "find_eligible_candidates", text: "4 opted-in plans in Philadelphia, Jan 17–19." },
+    { tool: "score_candidates", text: "The matcher scored each person's fit: best fit 84%." },
     { tool: "check_group_availability", text: "A shared evening window exists for 3 people." },
   ];
   return (
@@ -39,8 +39,8 @@ function AgentPreview() {
               </li>
             ))}
             <li className="rise flex gap-3" style={{ animationDelay: "640ms" }}>
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-violet-soft"><Sparkles className="size-3.5 text-violet" aria-hidden /></span>
-              <p className="pt-1 text-[13.5px] leading-snug">I found a possible group with compatible plans. You choose who to invite.</p>
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-emerald-soft"><ShieldCheck className="size-3.5 text-emerald-ink" aria-hidden /></span>
+              <p className="pt-1 text-[13.5px] leading-snug">Checks passed: a public place, and everyone is free. You choose who to invite.</p>
             </li>
           </ol>
           <div className="mt-5 flex items-center justify-between rounded-2xl bg-raised p-3">
@@ -87,7 +87,7 @@ export function Landing() {
             <ol className="mt-12 grid gap-8 md:grid-cols-3">
               {[
                 ["Tell your agent your plan", "A conference, a trip, a free evening. It stays private: no public post, no live location."],
-                ["Review your people", "The agent calls real tools to find opted-in plans that overlap with yours, and tells you why. Pass on anyone, privately."],
+                ["Review your people", "Our matching model, trained on real Meetup group data, finds opted-in people whose plans and free time fit yours, and tells you why. Pass on anyone, privately."],
                 ["Approve a shared experience", "Only the people you approve are invited. Everyone confirms the same public place and time before it's on."],
               ].map(([t, d], i) => (
                 <li key={t} className="border-t border-white/20 pt-5">

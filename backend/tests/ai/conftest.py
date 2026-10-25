@@ -9,6 +9,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/test.db"
 os.environ["MODEL_API_KEY"] = ""  # never hit the real API from tests
 os.environ["MEDIA_DIR"] = f"{_tmp}/media"
 os.environ["DEMO_MODE"] = "true"
+os.environ["VENUE_SEARCH_ENABLED"] = "false"  # no OpenStreetMap calls from tests
 
 import pytest  # noqa: E402
 from fastapi import FastAPI  # noqa: E402
