@@ -135,7 +135,7 @@ export function SafeMeet({ p }: { p: Proposal }) {
         {people.map((m) => (
           <li key={m.user_id} className="flex items-center gap-3">
             <Avatar name={m.display_name} src={m.avatar_url} size={32} />
-            <div className="min-w-0 flex-1"><span className="text-[15px]">{m.display_name}{m.is_initiator && <span className="text-muted"> · organizer</span>}</span><DetailChips details={m.details} /></div>
+            <div className="min-w-0 flex-1"><span className="text-[15px]">{m.display_name}{m.is_initiator && <span className="text-muted"> · organizer</span>}</span>{m.interests.length > 0 && <span className="block text-[13px] text-muted">{m.interests.slice(0, 3).join(" · ")}</span>}<DetailChips details={m.details} /></div>
             {confirmed && m.user_id !== me?.id && <button type="button" onClick={() => messagePerson(m)} aria-label={`Message ${m.display_name}`} className="press grid size-9 shrink-0 place-items-center rounded-full bg-violet-soft text-violet-ink hover:bg-violet-soft/70"><MessageCircle className="size-4" aria-hidden /></button>}
             {m.confirmed ? <Pill tone="emerald"><Check className="size-3.5" aria-hidden /> Confirmed</Pill> : <Pill tone="neutral">Not yet</Pill>}
           </li>

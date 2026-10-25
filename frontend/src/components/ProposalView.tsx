@@ -102,7 +102,7 @@ function MemberView({ p }: { p: Proposal }) {
         {final ? <SafeMeet p={p} /> : (
           <Panel className="p-5"><p className="text-[15px]">You're in. Vote on a public place with the group, or the organizer will propose one; you'll confirm the final details before anything is set.</p></Panel>
         )}
-        <Roster p={p} />
+        {!final && <Roster p={p} />}
         <SafetyActions proposalId={p.id} person={organizer && { id: organizer.user_id, name: organizer.display_name }}
           onLeave={() => navigate("/invitations", { replace: true })} onBlocked={() => navigate("/invitations", { replace: true })} />
       </div>
@@ -148,7 +148,7 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
             <CandidateList proposal={p} onRun={onRun} />
           </Panel>
         )}
-        {p.members.some((m) => !m.is_initiator && ["invited", "accepted", "declined"].includes(m.status)) && <Roster p={p} title="Invitations" />}
+        {!final && p.members.some((m) => !m.is_initiator && ["invited", "accepted", "declined"].includes(m.status)) && <Roster p={p} title="Invitations" />}
         <JoinRequests p={p} />
         {canFinalize && (editing || (!final && !voting)) && (
           <Panel className="p-5 sm:p-6" aria-labelledby="finalize-title">
