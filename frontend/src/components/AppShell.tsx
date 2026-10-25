@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Bot, Home, Inbox, PlusSquare, ShieldCheck, UserRound } from "lucide-react";
+import { Home, Inbox, PlusSquare, ShieldCheck, UserRound } from "lucide-react";
 import { useInvitations } from "../lib/hooks";
 import { AccountMenu } from "./AccountMenu";
 import { LogoMark, Wordmark } from "./Brand";
@@ -11,7 +11,6 @@ const TILE: Record<string, string> = {
   "/home": "bg-orange-soft text-orange-ink",
   "/invitations": "bg-rose-soft text-rose-ink",
   "/create": "bg-amber-soft text-amber-ink",
-  "/agent": "bg-violet-soft text-violet-ink",
   "/profile": "bg-blue-soft text-blue-ink",
 };
 
@@ -19,7 +18,6 @@ const NAV = [
   { to: "/home", label: "Home", icon: Home },
   { to: "/invitations", label: "Invitations", icon: Inbox },
   { to: "/create", label: "Create", icon: PlusSquare },
-  { to: "/agent", label: "Gather Agent", icon: Bot },
   { to: "/profile", label: "Profile", icon: UserRound },
 ];
 
@@ -38,7 +36,7 @@ function Badge({ n }: { n: number }) {
 export function AppShell({ children, aside, chatAside = false }: { children: ReactNode; aside?: ReactNode; chatAside?: boolean }) {
   const invites = useInviteCount();
   const { pathname } = useLocation();
-  const activePath = pathname.startsWith("/plans/") ? "/agent" : pathname.startsWith("/proposals/") ? "/invitations" : pathname;
+  const activePath = pathname.startsWith("/plans/") ? "/home" : pathname.startsWith("/proposals/") ? "/invitations" : pathname;
   const isCurrent = (to: string) => activePath === to;
   return (
     <div className="min-h-dvh md:flex">
@@ -101,7 +99,7 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
                 {() => (<>
                   {isCurrent(to) && <span aria-hidden className="rise ig-grad absolute top-0 h-[3px] w-8 rounded-b-full" />}
                   <Icon className="size-6" strokeWidth={isCurrent(to) ? 2.25 : 1.6} aria-hidden />
-                  <span>{label === "Gather Agent" ? "Agent" : label}</span>
+                  <span>{label}</span>
                 </>)}
               </NavLink>
             </li>

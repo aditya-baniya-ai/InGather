@@ -33,7 +33,7 @@ export function PlanCard({ plan, index = 0 }: { plan: Plan; index?: number }) {
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             {plan.latest_proposal_id ? <ProposalStatusLine id={plan.latest_proposal_id} />
               : <span className="text-[13.5px] text-muted">{plan.status === "active" ? "Your agent hasn't searched yet" : plan.status}</span>}
-            <span className="inline-flex items-center gap-1 text-[14px] font-semibold text-[var(--cat-ink)]">Open Gather Agent <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden /></span>
+            <span className="inline-flex items-center gap-1 text-[14px] font-semibold text-[var(--cat-ink)]">Find my people <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden /></span>
           </div>
         </div>
       </Link>
