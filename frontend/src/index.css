@@ -221,3 +221,10 @@ html[data-theme="dark"] {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   @keyframes fade { from { opacity: 0; } }
 }
+
+/* Leaflet map: dark tiles in dark mode, and controls in the app's colours. */
+html[data-theme="dark"] .group-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9); }
+.group-map .leaflet-control-attribution { font-size: 10px; background: color-mix(in srgb, var(--color-surface) 80%, transparent); color: var(--color-muted); }
+.group-map .leaflet-control-attribution a { color: var(--color-muted); }
+.group-map .leaflet-bar a { background: var(--color-surface); color: var(--color-ink); border-color: var(--color-line); }
+.group-map { z-index: 0; }

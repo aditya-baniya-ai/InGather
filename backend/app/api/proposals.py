@@ -18,7 +18,7 @@ from app.schemas import (
     RespondIn,
     RunOut,
     VenuePollOut,
-    VenueVoteIn,
+    VenueRateIn, LocationIn,
 )
 from app.security import current_user, not_found
 from app.services.outbox import Outbox
@@ -160,12 +160,29 @@ def start_venue_poll(proposal_id: UUID, ctx: Ctx = Depends()):
     return v.view(proposal, ctx.user)
 
 
-@router.post("/proposals/{proposal_id}/venue-poll/vote", response_model=VenuePollOut)
-def cast_venue_vote(proposal_id: UUID, body: VenueVoteIn, ctx: Ctx = Depends()):
+@router.post("/proposals/{proposal_id}/venue-poll/rate", response_model=VenuePollOut)
+def rate_venue(proposal_id: UUID, body: VenueRateIn, ctx: Ctx = Depends()):
     proposal, _ = ctx.proposal(proposal_id, "owner", "member")
     limiter.hit("venue_vote", ctx.user.id)
     v = voting(ctx)
-    v.vote(proposal, ctx.user, body.option_id)
+    v.rate(proposal, ctx.user, body.option_id, body.score)
+    return v.view(proposal, ctx.user)
+
+
+@router.put("/proposals/{proposal_id}/location", response_model=VenuePollOut)
+def share_location(proposal_id: UUID, body: LocationIn, ctx: Ctx = Depends()):
+    """Opt in: show my location (rounded to ~100 m) to this group's participants and use it to find fair places."""
+    proposal, _ = ctx.proposal(proposal_id, "owner", "member")
+    v = voting(ctx)
+    v.share_location(proposal, ctx.user, body.latitude, body.longitude)
+    return v.view(proposal, ctx.user)
+
+
+@router.delete("/proposals/{proposal_id}/location", response_model=VenuePollOut)
+def stop_sharing_location(proposal_id: UUID, ctx: Ctx = Depends()):
+    proposal, _ = ctx.proposal(proposal_id, "owner", "member")
+    v = voting(ctx)
+    v.stop_sharing(proposal, ctx.user)
     return v.view(proposal, ctx.user)
 
 

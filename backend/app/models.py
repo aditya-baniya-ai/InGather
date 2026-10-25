@@ -329,16 +329,37 @@ class VenueOption(Base):
     reservation_url: Mapped[str | None] = mapped_column(String(500))
     source_url: Mapped[str | None] = mapped_column(String(500))
     verified: Mapped[bool] = mapped_column(default=False)  # True only if it came from grounded search with a source URL
+    description: Mapped[str] = mapped_column(String(300), default="")  # what the place is, in one sentence
+    latitude: Mapped[float | None] = mapped_column(Float)  # map pin (verified near the group, or geocoded from the address)
+    longitude: Mapped[float | None] = mapped_column(Float)
+    image_url: Mapped[str | None] = mapped_column(String(500))  # photo found by the search (https only); UI falls back to a stock photo
 
 
-class VenueVote(Base):
-    __tablename__ = "venue_votes"
-    __table_args__ = (UniqueConstraint("poll_id", "user_id"),)
+class VenueRating(Base):
+    """One 1-10 score per person per option. The poll is decided once everyone has rated every option."""
+
+    __tablename__ = "venue_ratings"
+    __table_args__ = (UniqueConstraint("poll_id", "user_id", "option_id"),)
     id: Mapped[uuid.UUID] = Id.pk()
     poll_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_polls.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    option_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_options.id", ondelete="CASCADE"))
+    option_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_options.id", ondelete="CASCADE"), index=True)
+    score: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class MeetupLocation(Base):
+    """A participant's opt-in location for one group, rounded to ~100 m. Seen only by that group's participants and
+    used to find places near everyone; removed whenever they want and never shown outside the group."""
+
+    __tablename__ = "meetup_locations"
+    __table_args__ = (UniqueConstraint("proposal_id", "user_id"),)
+    id: Mapped[uuid.UUID] = Id.pk()
+    proposal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("proposals.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 
 class JoinStatus(StrEnum):

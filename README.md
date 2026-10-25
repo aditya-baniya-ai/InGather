@@ -71,7 +71,7 @@ set. Never commit the connection string or database password.
 | Model | Where |
 |---|---|
 | `muse-spark-1.3`: **Intake agent** | "Describe it" mode on Create Plan: it turns a sentence ("HackTX Oct 24–25 at UT Austin from 10am") into a pre-filled form you review. Nothing saves until you do. |
-| `muse-spark-1.3` + web search: **venue agent** | Finds three real public places near the middle of a group for the group to vote on, and builds the Austin venue catalog (`app/demo/venues.py`). Only results backed by a source page count as verified. |
+| `muse-spark-1.3` + web search: **venue agent** | Finds three real public places that are fair for everyone in the group, each with a short description, map pin and photo. Members rate each place 1–10 on a shared map that shows the places and anyone who chose to share their location. Hovering or tapping a place shows its photo and each person's estimated walk or drive time, and links to directions in Apple or Google Maps. "Find more places" fetches a new set, up to 3 times. The agent also builds the Austin venue catalog (`app/demo/venues.py`). Only results backed by a source page count as verified. |
 | `muse-spark-1.3`: **join helpers** | "Write it with Muse" drafts your intro when you ask to join a group, using your own profile. After the host accepts, Muse writes your welcome note. Without a key both use plain templates. |
 | `muse-spark-1.3`: **icebreaker and demo bios** | The group chat's opening question once a meetup is confirmed, and the one-time rewrite of the demo people's "about" texts. |
 | `muse-image-1.0` | Plan cover images, generated only from activity, city and interests (no personal data). |

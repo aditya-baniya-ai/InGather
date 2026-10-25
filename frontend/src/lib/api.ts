@@ -180,13 +180,18 @@ export interface FinalizeIn { venue_place_id?: string; start_at?: string; end_at
 export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only" | "home_area">>;
 
 export interface VenueOption {
-  id: string; rank: number; name: string; area: string | null; category: string; why: string;
-  reservation_url: string | null; source_url: string | null; verified: boolean; votes: number;
+  id: string; rank: number; name: string; area: string | null; category: string; why: string; description: string;
+  latitude: number | null; longitude: number | null; image_url: string | null;
+  reservation_url: string | null; source_url: string | null; verified: boolean;
+  average: number | null; ratings: number; my_score: number | null;
 }
-export interface Voter { user_id: string; display_name: string; voted: boolean }
+export interface Voter { user_id: string; display_name: string; voted: boolean; rated: number }
+/** A group member who shared their location with this group (rounded to ~100 m). */
+export interface MapPerson { user_id: string; display_name: string; avatar_url: string | null; latitude: number; longitude: number; is_me: boolean }
 export interface VenuePoll {
   status: "not_started" | "open" | "decided"; round: number; rerolls_left: number; source: "grounded" | "fallback" | null;
-  options: VenueOption[]; my_vote: string | null; voters: Voter[]; winner_option_id: string | null; proposal_version: number;
+  options: VenueOption[]; voters: Voter[]; people: MapPerson[]; i_shared_location: boolean;
+  winner_option_id: string | null; proposal_version: number;
 }
 
 export class ApiError extends Error {
@@ -295,7 +300,9 @@ export class ApiClient {
   respond = (id: string, accept: boolean) => this.post<Proposal>(`/api/proposals/${id}/respond`, { accept });
   venuePoll = (id: string) => this.get<VenuePoll>(`/api/proposals/${id}/venue-poll`);
   startVenuePoll = (id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll`);
-  voteVenue = (id: string, option_id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll/vote`, { option_id });
+  rateVenue = (id: string, option_id: string, score: number) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll/rate`, { option_id, score });
+  shareLocation = (id: string, latitude: number, longitude: number) => this.request<VenuePoll>("PUT", `/api/proposals/${id}/location`, { latitude, longitude });
+  stopSharingLocation = (id: string) => this.request<VenuePoll>("DELETE", `/api/proposals/${id}/location`);
   rerollVenues = (id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll/reroll`);
   /** Downloads the .ics with the bearer token (a plain link can't carry it). */
   downloadCalendar = async (id: string) => {

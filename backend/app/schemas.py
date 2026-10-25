@@ -420,16 +420,34 @@ class VenueOptionOut(BaseModel):
     area: str | None
     category: str
     why: str
+    description: str
+    latitude: float | None
+    longitude: float | None
+    image_url: str | None
     reservation_url: str | None
     source_url: str | None
     verified: bool  # True only when it came from grounded web search with a source URL
-    votes: int
+    average: float | None  # mean 1-10 score so far
+    ratings: int  # how many people rated it
+    my_score: int | None
 
 
 class VoterOut(BaseModel):
     user_id: UUID
     display_name: str
-    voted: bool  # whether they voted, never what they chose
+    voted: bool  # rated every option
+    rated: int
+
+
+class MapPersonOut(BaseModel):
+    """A participant who chose to share their location with this group (rounded to ~100 m)."""
+
+    user_id: UUID
+    display_name: str
+    avatar_url: str | None
+    latitude: float
+    longitude: float
+    is_me: bool
 
 
 class VenuePollOut(BaseModel):
@@ -438,14 +456,21 @@ class VenuePollOut(BaseModel):
     rerolls_left: int
     source: str | None  # grounded|fallback
     options: list[VenueOptionOut]
-    my_vote: UUID | None
     voters: list[VoterOut]
+    people: list[MapPersonOut]
+    i_shared_location: bool
     winner_option_id: UUID | None
     proposal_version: int
 
 
-class VenueVoteIn(BaseModel):
+class VenueRateIn(BaseModel):
     option_id: UUID
+    score: int = Field(ge=1, le=10)
+
+
+class LocationIn(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
 
 
 # --- home feed & join requests -----------------------------------------------------------------

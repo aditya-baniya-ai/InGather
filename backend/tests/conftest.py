@@ -97,6 +97,9 @@ class Api:
     def patch(self, url, json):
         return self.client.patch(url, headers=self.headers, json=json)
 
+    def put(self, url, json):
+        return self.client.put(url, headers=self.headers, json=json)
+
     def delete(self, url):
         return self.client.delete(url, headers=self.headers)
 

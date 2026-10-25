@@ -46,3 +46,25 @@ def geocode_area(area: str, enabled: bool = True) -> tuple[float, float] | None:
         return coarse(float(hits[0]["lat"]), float(hits[0]["lon"])) if hits else None
     except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
         return None
+
+
+def geocode_place(query: str, enabled: bool = True) -> tuple[float, float] | None:
+    """A public venue's street address -> exact map pin (venues are public places, so no rounding). None if unknown."""
+    query = (query or "").strip()[:200]
+    if not query or not enabled:
+        return None
+    try:
+        with places._lock:
+            wait = 1.1 - (time.monotonic() - places._last_request)
+            if wait > 0:
+                time.sleep(wait)
+            try:
+                r = httpx.get("https://nominatim.openstreetmap.org/search", params={"q": query, "format": "jsonv2", "limit": 1},
+                              headers={"User-Agent": "InGather/0.1 (venue map pin)"}, timeout=10)
+                r.raise_for_status()
+            finally:
+                places._last_request = time.monotonic()
+        hits = r.json()
+        return (round(float(hits[0]["lat"]), 6), round(float(hits[0]["lon"]), 6)) if hits else None
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        return None

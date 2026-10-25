@@ -38,6 +38,10 @@ SCHEMA = obj({
             "area": {"type": "string", "description": "Street address or neighborhood"},
             "category": {"type": "string", "enum": list(PUBLIC_CATEGORIES)},
             "why": {"type": "string", "description": "One sentence: fair travel, shared interests, quiet enough to talk, open then"},
+            "description": {"type": "string", "description": "One short sentence on what the place is (cuisine, vibe, specialty)"},
+            "latitude": nullable({"type": "number"}),
+            "longitude": nullable({"type": "number"}),
+            "image_url": nullable({"type": "string", "description": "https URL of a photo of the venue from its own site or listing, or null"}),
             "reservation_url": nullable({"type": "string"}),
             "source_url": nullable({"type": "string"}),
         }),
@@ -50,7 +54,10 @@ INSTRUCTIONS = (
     "group's activity and shared interests and are OPEN at the given local time. Prefer places quiet enough to talk "
     "and easy for everyone to reach. Never suggest homes, hotels, private clubs or anything residential. "
     "Never mention latitude, longitude or coordinates in any text; say 'near the middle of your group' instead. "
-    "For each venue give its name, street address or neighborhood, category, one short sentence on why it fits "
+    "Pick places that are a fair trip for EVERYONE in the group (close to the middle of all of them), not just one person. "
+    "For each venue give its name, street address or neighborhood, category, a short description of what the place is, "
+    "its latitude and longitude (from the listing or map you found; null if you don't know them), the https URL of a "
+    "real photo of the venue from a page you found (null if none), one short sentence on why it fits "
     "(fair travel for everyone, shared interests, quiet enough to talk, open at that time), the URL of the web page "
     "you found it on as source_url, and reservation_url ONLY if you found a real booking link (OpenTable, Resy, Tock "
     "or the venue's own reservation page); otherwise null. Rank best first. If you cannot verify a venue, omit it."
@@ -61,6 +68,34 @@ FALLBACK = [
     ("A casual food hall or restaurant nearby", "food_hall", "Lots of choice for different tastes in a busy public space."),
     ("A public library or museum café", "library", "Calm, public and usually central. Check opening hours."),
 ]
+
+
+MAX_KM_FROM_MIDDLE = 30  # pins farther than this from the group are dropped as unreliable
+
+
+def _km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    import math
+
+    la1, lo1, la2, lo2 = map(math.radians, (*a, *b))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 12742 * math.asin(math.sqrt(min(1, h)))
+
+
+def _coords(v: dict, near: tuple[float, float] | None) -> tuple[float | None, float | None]:
+    try:
+        lat, lng = float(v.get("latitude")), float(v.get("longitude"))
+    except (TypeError, ValueError):
+        return None, None
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180) or (near and _km(near, (lat, lng)) > MAX_KM_FROM_MIDDLE):
+        return None, None
+    return round(lat, 6), round(lng, 6)
+
+
+def _image(url) -> str | None:
+    """A https photo URL, never a page, data: or javascript: link. The browser falls back to a stock photo if it fails."""
+    if not _host(url) or len(url) > 500:
+        return None
+    return url.strip() if not re.search(r"\s", url.strip()) else None
 
 
 @dataclass
@@ -122,7 +157,7 @@ def _reservation(url, source_host: str | None) -> str | None:
     return None
 
 
-def validate(raw: list, grounded: set[str], searched: bool) -> list[dict]:
+def validate(raw: list, grounded: set[str], searched: bool, near: tuple[float, float] | None = None) -> list[dict]:
     """Public categories only, no homes/hotels, dedupe by name, max 3, verified only with a grounded source URL."""
     out, seen = [], set()
     for v in raw if isinstance(raw, list) else []:
@@ -142,12 +177,16 @@ def validate(raw: list, grounded: set[str], searched: bool) -> list[dict]:
         source = v.get("source_url")
         source = source.strip()[:500] if _host(source) else None
         verified = bool(searched and source and norm_url(source) in grounded)
+        lat, lng = _coords(v, near) if verified else (None, None)
         out.append({
             "name": name, "area": area, "category": category,
             "why": strip_coordinates(str(v.get("why") or ""))[:400],
             "reservation_url": _reservation(v.get("reservation_url"), _host(source)) if verified else None,
             "source_url": source if verified else None,
             "verified": verified,
+            "description": strip_coordinates(str(v.get("description") or ""))[:300],
+            "latitude": lat, "longitude": lng,
+            "image_url": _image(v.get("image_url")) if verified else None,
         })
         if len(out) == MAX_OPTIONS:
             break
@@ -155,8 +194,8 @@ def validate(raw: list, grounded: set[str], searched: bool) -> list[dict]:
 
 
 def fallback_options() -> list[dict]:
-    return [{"name": n, "area": None, "category": c, "why": w, "reservation_url": None, "source_url": None, "verified": False}
-            for n, c, w in FALLBACK]
+    return [{"name": n, "area": None, "category": c, "why": w, "reservation_url": None, "source_url": None, "verified": False,
+             "description": "", "latitude": None, "longitude": None, "image_url": None} for n, c, w in FALLBACK]
 
 
 def _prompt(req: VenueRequest) -> str:
@@ -186,7 +225,7 @@ class VenueAgent:
             )
             searched, grounded = _grounded_urls(resp)
             text = answer_text(resp)
-            options = validate(parse_json(text).get("venues", []) if text else [], grounded, searched)
+            options = validate(parse_json(text).get("venues", []) if text else [], grounded, searched, req.midpoint)
         except Exception as exc:  # network, schema, parse: fall back honestly
             log.warning("venue agent failed: %s", type(exc).__name__)
             return VenueResult(fallback_options(), "fallback")

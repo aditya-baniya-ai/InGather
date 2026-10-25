@@ -1,4 +1,4 @@
-"""Venue vote: midpoint privacy, auth, one vote per person, tie-break, version bump, re-roll, .ics."""
+"""Venue rating: midpoint privacy, auth, 1-10 ratings, average + tie-break, version bump, more places, locations, .ics."""
 
 from types import SimpleNamespace
 
@@ -74,25 +74,40 @@ def test_offline_fallback_is_labeled_unverified(group):
     assert apis["alice"].post(poll_url(pid)).json()["options"] == poll["options"]  # idempotent start
 
 
-def test_one_vote_per_person_change_vote_and_winner_bumps_version(group):
+def rate(api, pid, option_id, score):
+    return api.post(poll_url(pid, "/rate"), {"option_id": option_id, "score": score})
+
+
+def rate_all(api, pid, options, scores):
+    for o, sc in zip(options, scores):
+        res = rate(api, pid, o["id"], sc)
+    return res.json()
+
+
+def test_everyone_rates_every_place_and_the_best_average_wins(group):
     apis, pid = group
     names = list(apis)
     alice = apis["alice"]
     before = alice.get(f"/api/proposals/{pid}").json()["version"]
     opts = alice.post(poll_url(pid)).json()["options"]
-    a, b = opts[0]["id"], opts[1]["id"]
-    alice.post(poll_url(pid, "/vote"), {"option_id": a})
-    p = alice.post(poll_url(pid, "/vote"), {"option_id": b}).json()  # change of mind, still one vote
-    assert p["my_vote"] == b and sum(o["votes"] for o in p["options"]) == 1
-    assert [v["voted"] for v in p["voters"]].count(True) == 1
-    apis[names[1]].post(poll_url(pid, "/vote"), {"option_id": b})
-    assert alice.get(poll_url(pid)).json()["status"] == "open"
-    done = apis[names[2]].post(poll_url(pid, "/vote"), {"option_id": a}).json()
+    a, b, c = (o["id"] for o in opts)
+    rate(alice, pid, a, 9)
+    p = rate(alice, pid, a, 4).json()  # change of mind, still one score
+    mine = {o["id"]: o["my_score"] for o in p["options"]}
+    assert mine == {a: 4, b: None, c: None} and [o["ratings"] for o in p["options"]] == [1, 0, 0]
+    assert next(v for v in p["voters"] if v["display_name"] == "Alice")["rated"] == 1
+    assert rate(alice, pid, a, 11).status_code == 422 and rate(alice, pid, a, 0).status_code == 422
+    rate_all(alice, pid, opts, [4, 8, 6])
+    rate_all(apis[names[1]], pid, opts, [10, 7, 2])
+    assert alice.get(poll_url(pid)).json()["status"] == "open"  # one person still has places to rate
+    done = rate_all(apis[names[2]], pid, opts, [3, 9, 9])
+    # averages: a = 5.67, b = 8.0, c = 5.67 -> b
     assert done["status"] == "decided" and done["winner_option_id"] == b
+    assert [o["average"] for o in done["options"]] == [5.7, 8.0, 5.7]
     prop = alice.get(f"/api/proposals/{pid}").json()
     assert prop["version"] == before + 1 and prop["status"] == "awaiting_final"
     assert prop["venue_label"] == opts[1]["name"] and prop["venue_verified"] is False
-    assert alice.post(poll_url(pid, "/vote"), {"option_id": a}).json() == {"detail": "venue_poll_closed"}
+    assert rate(alice, pid, a, 5).json() == {"detail": "venue_poll_closed"}
 
 
 def test_winner_resets_confirmations(users, group):
@@ -102,43 +117,67 @@ def test_winner_resets_confirmations(users, group):
     v = alice.get(f"/api/proposals/{pid}").json()["version"]
     alice.post(f"/api/proposals/{pid}/confirm", {"version": v})
     assert alice.get(f"/api/proposals/{pid}").json()["i_confirmed"] is True
-    opt = alice.post(poll_url(pid)).json()["options"][2]["id"]
+    opts = alice.post(poll_url(pid)).json()["options"]
     for api in apis.values():
-        api.post(poll_url(pid, "/vote"), {"option_id": opt})
+        rate_all(api, pid, opts, [2, 3, 10])
     prop = alice.get(f"/api/proposals/{pid}").json()
-    assert prop["version"] == v + 1 and prop["i_confirmed"] is False
+    assert prop["version"] == v + 1 and prop["i_confirmed"] is False and prop["venue_label"] == opts[2]["name"]
     assert not any(m["confirmed"] for m in prop["members"])
     assert alice.post(f"/api/proposals/{pid}/confirm", {"version": v}).json() == {"detail": "stale_version"}
 
 
 def test_tie_goes_to_higher_ranked_option():
     opts = [SimpleNamespace(id=i, rank=i) for i in (1, 2, 3)]
-    votes = [SimpleNamespace(option_id=3), SimpleNamespace(option_id=2), SimpleNamespace(option_id=1)]
-    assert pick_winner(opts, votes).id == 1
-    assert pick_winner(opts, votes + [SimpleNamespace(option_id=3)]).id == 3
-    assert pick_winner(opts, votes[:2]).id == 2
+    r = lambda o, s: SimpleNamespace(option_id=o, score=s)  # noqa: E731
+    assert pick_winner(opts, [r(1, 7), r(2, 7), r(3, 7)]).id == 1
+    assert pick_winner(opts, [r(1, 7), r(2, 7), r(3, 9)]).id == 3
+    assert pick_winner(opts, [r(1, 5), r(1, 9), r(2, 7), r(3, 6)]).id == 1  # 7.0 vs 7.0 -> better rank
 
 
-def test_reroll_once_resets_votes(group):
+def test_find_more_places_up_to_three_times(group):
     apis, pid = group
     alice = apis["alice"]
     first = alice.post(poll_url(pid)).json()
-    alice.post(poll_url(pid, "/vote"), {"option_id": first["options"][0]["id"]})
+    rate(alice, pid, first["options"][0]["id"], 8)
     second = alice.post(poll_url(pid, "/reroll")).json()
-    assert second["round"] == 2 and second["rerolls_left"] == 0 and second["my_vote"] is None
-    assert all(o["votes"] == 0 for o in second["options"])
+    assert second["round"] == 2 and second["rerolls_left"] == 2
+    assert all(o["my_score"] is None and o["ratings"] == 0 for o in second["options"])
     assert {o["id"] for o in second["options"]}.isdisjoint({o["id"] for o in first["options"]})
-    assert alice.post(poll_url(pid, "/vote"), {"option_id": first["options"][0]["id"]}).json() == {"detail": "option_not_found"}
+    assert rate(alice, pid, first["options"][0]["id"], 5).json() == {"detail": "option_not_found"}
+    alice.post(poll_url(pid, "/reroll"))
+    assert alice.post(poll_url(pid, "/reroll")).json()["rerolls_left"] == 0
     assert alice.post(poll_url(pid, "/reroll")).json() == {"detail": "reroll_used"}
+
+
+def test_locations_are_opt_in_rounded_group_only_and_move_the_midpoint(users, as_user, group, db, settings):
+    from app.models import Proposal
+    from app.services.venue_votes import VenueVoting
+
+    apis, pid = group
+    alice = apis["alice"]
+    assert alice.get(poll_url(pid)).json()["people"] == []
+    res = alice.put(f"/api/proposals/{pid}/location", {"latitude": 30.267153, "longitude": -97.743057})
+    body = res.json()
+    assert res.status_code == 200 and body["i_shared_location"] is True
+    [me] = body["people"]
+    assert (me["latitude"], me["longitude"], me["is_me"]) == (30.267, -97.743, True)
+    other = apis[list(apis)[1]].get(poll_url(pid)).json()
+    assert other["people"][0]["is_me"] is False and other["i_shared_location"] is False
+    assert as_user(users["eve"]).put(f"/api/proposals/{pid}/location", {"latitude": 1, "longitude": 1}).status_code == 404
+    assert alice.put(f"/api/proposals/{pid}/location", {"latitude": 91, "longitude": 0}).status_code == 422
+    proposal = db.get(Proposal, __import__("uuid").UUID(pid))
+    assert VenueVoting(db, settings).request_for(proposal).midpoint is not None
+    assert alice.delete(f"/api/proposals/{pid}/location").json()["people"] == []
 
 
 def test_ics_for_confirmed_participants_only(users, as_user, group):
     apis, pid = group
     alice = apis["alice"]
     assert alice.get(f"/api/proposals/{pid}/calendar.ics").status_code == 404  # not confirmed yet
-    opt = alice.post(poll_url(pid)).json()["options"][0]
+    opts = alice.post(poll_url(pid)).json()["options"]
+    opt = opts[0]
     for api in apis.values():
-        api.post(poll_url(pid, "/vote"), {"option_id": opt["id"]})
+        rate_all(api, pid, opts, [10, 1, 1])
     v = alice.get(f"/api/proposals/{pid}").json()["version"]
     for api in apis.values():
         api.post(f"/api/proposals/{pid}/confirm", {"version": v})
@@ -214,3 +253,15 @@ def test_agent_failure_or_no_key_falls_back_without_invented_names(settings):
 def test_validate_drops_non_https_sources():
     out = validate([venue("X", source="http://example-cafe.com/")], {"example-cafe.com"}, True)
     assert out[0]["verified"] is False
+
+
+def test_agent_pins_photos_and_descriptions_are_validated(settings):
+    near = venue("Near Cafe")
+    near.update(latitude=39.951, longitude=-75.163, image_url="https://example-cafe.com/photo.jpg", description="Espresso bar with big tables.")
+    far = venue("Far Cafe")
+    far.update(latitude=40.71, longitude=-74.0, image_url="javascript:alert(1)", description="")  # New York: too far from the group
+    result = VenueAgent(FakeMuse(grounded(near, far)), settings).suggest(REQ)
+    a, b = result.options[:2]
+    assert (a["latitude"], a["longitude"], a["image_url"]) == (39.951, -75.163, "https://example-cafe.com/photo.jpg")
+    assert a["description"] == "Espresso bar with big tables."
+    assert b["latitude"] is None and b["image_url"] is None
