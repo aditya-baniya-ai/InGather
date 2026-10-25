@@ -159,6 +159,8 @@ class Proposal(Base):
     venue_details: Mapped[dict | None] = mapped_column(JSON)  # provider-sourced meetup coordinates, never event origin
     venue_verified: Mapped[bool] = mapped_column(default=False)  # False = generic suggestion, not a real booking
     icebreaker: Mapped[str | None] = mapped_column(String(280))
+    # Owner opted in to people asking to join from their Home feed (only while the group has open spots).
+    open_to_requests: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
@@ -335,3 +337,28 @@ class VenueVote(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     option_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_options.id", ondelete="CASCADE"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class JoinStatus(StrEnum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+    withdrawn = "withdrawn"
+
+
+class JoinRequest(Base):
+    """Someone asking to join an open group from their Home feed. The group's owner decides; a decline is private."""
+
+    __tablename__ = "join_requests"
+    __table_args__ = (UniqueConstraint("proposal_id", "user_id"),)
+    id: Mapped[uuid.UUID] = Id.pk()
+    proposal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("proposals.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[JoinStatus] = mapped_column(str_enum(JoinStatus), default=JoinStatus.pending)
+    message: Mapped[str | None] = mapped_column(String(400))  # the requester's short intro to the group
+    score: Mapped[float | None] = mapped_column(Float)  # matcher fit at request time (owner-visible)
+    welcome: Mapped[str | None] = mapped_column(String(400))  # Muse-written note for the requester once accepted
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[User] = relationship(lazy="joined")

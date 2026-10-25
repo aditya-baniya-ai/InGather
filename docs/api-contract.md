@@ -189,3 +189,24 @@ Replans (`pass`, `decline`, `feedback`) keep people still on the open proposal a
 `GET /api/chats` returns the signed-in user's confirmed group chats and individual connections as `{id, kind: "group"|"direct", title, people: [{user_id, display_name, avatar_url}], last_message, last_sender_name, updated_at}`. Only the user's own message previews are included. No contact details are returned.
 
 `GET /api/chats/people/{user_id}/messages` returns the latest 200 direct messages in chronological order (`MessageOut`). `POST` to the same path accepts `MessageIn` and returns the stored `MessageOut` (201); sender identity always comes from authentication. Both endpoints require a connection established by a fully confirmed shared meetup. Connections persist after the meetup. Self, unconnected and blocked peers return 404 in either direction; sending uses the existing per-user message rate limit. Group chat remains on `/api/proposals/{id}/messages` and is kept separate from direct messages.
+
+
+## Home feed and join requests — `app/api/feed.py`, `app/services/feed.py` (v4)
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | /api/feed | – | `[FeedItemOut]`: up to 20 open groups ranked by the matcher for the viewer (empty unless `can_discover`). Groups the viewer joined from the feed come first. |
+| POST | /api/proposals/{id}/join | `{message?: str ≤400}` | `FeedItemOut` (201). 404 unless the group is joinable and visible to the viewer. Idempotent while pending or accepted; a declined requester gets 404. In DEMO_MODE a fictional host answers a few seconds later. |
+| DELETE | /api/proposals/{id}/join | – | 204: withdraws a pending request. |
+| POST | /api/proposals/{id}/join/draft | – | `{message, mode: "live"\|"template"}`: Muse Spark drafts an intro from the viewer's own bio and interests. Nothing is sent. |
+| GET | /api/proposals/{id}/join-requests | – | `[JoinRequestOut]`: owner only, pending requests. |
+| POST | /api/proposals/{id}/join-requests/{rid}/accept\|decline | – | `[JoinRequestOut]`: owner only. Accepting adds an `accepted` member, bumps the version (earlier confirmations no longer count) and stores a Muse-written welcome note. 409 `group_full_or_closed` if there's no room. |
+| POST | /api/proposals/{id}/open | `{open: bool}` | 204: owner turns "Let people ask to join" on or off. |
+| GET | /api/demo/avatars/{atx-NNNN}.svg | – | Illustrated portrait for a fictional Austin resident. |
+
+A group is joinable while `open_to_requests`, status is `invites_pending` or `awaiting_final`, it hasn't started, its plan is active and in `mutual_discovery`, and it has open spots (group_max, max 4, minus host and invited or accepted members). Blocks in either direction with the host or any member hide it.
+
+`FeedItemOut = {proposal_id, title, activity_type, city, day (local date), part_of_day: morning|afternoon|evening, venue_kind, preview, host: {first_name, avatar_url}, members: [...], group_size, spots_left, group_interests, shared_interests, match: 0-100, reason, free_then: bool|null, request_status: pending|accepted|declined|withdrawn|null, welcome|null}`. There's no exact time, venue name or full names until accepted.
+
+The match score is the matcher's fit probability, assuming the timing and activity work. The feed's ranking uses the viewer's real context: same activity and intent as their plan in that city, and hours free during the slot.
+
+`JoinRequestOut = {id, user_id, display_name, avatar_url, bio, interests, message, match, status, created_at}`.

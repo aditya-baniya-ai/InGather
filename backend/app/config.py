@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     app_env: str = "development"
     demo_mode: bool = True
+    demo_synthetic_users: int = 1000  # fictional Austin residents seeded in DEMO_MODE (0 = none)
+    demo_open_groups: int = 150  # open groups the matcher forms among them for the Home feed
     allow_real_world_meetups: bool = False
     enable_stranger_discovery: bool = False
     enable_real_identity_verification: bool = False

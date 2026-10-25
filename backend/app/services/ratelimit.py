@@ -17,6 +17,8 @@ class RateLimiter:
         "place_lookup": (10, 60),
         "venue_agent": (6, 60),
         "venue_vote": (30, 60),
+        "join_request": (10, 60),
+        "join_draft": (10, 60),
     }
 
     def __init__(self):

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Lock, Plus } from "lucide-react";
 import { AppShell } from "../components/AppShell";
 import { Cover } from "../components/Brand";
+import { FeedSection } from "../components/Feed";
 import { PlanCard } from "../components/PlanCard";
 import { EmptyState, ErrorState, LoadingBlock, SectionTitle, cx } from "../components/ui";
 import { useAuth } from "../lib/auth";
@@ -75,6 +76,8 @@ export function Home() {
           <ArrowRight className="size-5 text-rose-ink" aria-hidden />
         </Link>
       )}
+
+      {!filter && <FeedSection />}
 
       <section className="mt-8" aria-labelledby="plans-title">
         <SectionTitle id="plans-title" action={<Link to="/create" className="press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[14px] font-medium hover:bg-raised"><Plus className="size-4" aria-hidden /> New plan</Link>}>

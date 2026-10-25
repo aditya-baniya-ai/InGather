@@ -116,6 +116,8 @@ export interface Proposal {
   group_size: number;
   my_status: MemberStatus | null;
   i_confirmed: boolean;
+  /** Owner only: people can ask to join from their Home feed. */
+  open_to_requests?: boolean;
 }
 export interface Invitation {
   proposal_id: string;
@@ -162,6 +164,16 @@ export interface PlanDraft {
 
 export interface Message { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
 export interface BlockedUser { user_id: string; display_name: string }
+export interface FeedPerson { first_name: string; avatar_url: string | null }
+/** An open group as a non-member sees it: day and part of day, kind of place, first names. */
+export interface FeedItem {
+  proposal_id: string; title: string; activity_type: string; city: string; day: string; part_of_day: "morning" | "afternoon" | "evening";
+  venue_kind: string; preview: string | null; host: FeedPerson; members: FeedPerson[]; group_size: number; spots_left: number;
+  group_interests: string[]; shared_interests: string[]; match: number; reason: string; free_then: boolean | null;
+  request_status: "pending" | "accepted" | "declined" | "withdrawn" | null; welcome: string | null;
+}
+export interface JoinRequest { id: string; user_id: string; display_name: string; avatar_url: string | null; bio: string | null; interests: string[]; message: string | null; match: number | null; status: string; created_at: string }
+
 export interface VenuePlace { id: string; name: string; category: string; latitude: number; longitude: number; address: string; distance_m: number; source: string; reservation_url?: string | null; source_url?: string | null }
 export interface NearbyPlaces { status: string; message: string; places: VenuePlace[]; origin?: { latitude: number; longitude: number; label: string } }
 export interface FinalizeIn { venue_place_id?: string; start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
@@ -296,6 +308,16 @@ export class ApiClient {
   leave = (id: string) => this.post<Proposal | undefined>(`/api/proposals/${id}/leave`);
   messages = (id: string) => this.get<Message[]>(`/api/proposals/${id}/messages`);
   sendMessage = (id: string, body: string) => this.post<Message>(`/api/proposals/${id}/messages`, { body });
+
+  // home feed & join requests
+  feed = () => this.get<FeedItem[]>("/api/feed");
+  askToJoin = (id: string, message: string | null) => this.post<FeedItem>(`/api/proposals/${id}/join`, { message });
+  withdrawJoin = (id: string) => this.request<void>("DELETE", `/api/proposals/${id}/join`);
+  draftJoin = (id: string) => this.post<{ message: string; mode: "live" | "template" }>(`/api/proposals/${id}/join/draft`);
+  joinRequests = (id: string) => this.get<JoinRequest[]>(`/api/proposals/${id}/join-requests`);
+  decideJoin = (id: string, requestId: string, accept: boolean) =>
+    this.post<JoinRequest[]>(`/api/proposals/${id}/join-requests/${requestId}/${accept ? "accept" : "decline"}`);
+  setOpen = (id: string, open: boolean) => this.post<void>(`/api/proposals/${id}/open`, { open });
 
   chats = () => this.get<Conversation[]>("/api/chats");
   deleteChat = (id: string) => this.request<void>("DELETE", `/api/chats/people/${id}`);

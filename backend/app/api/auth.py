@@ -49,7 +49,10 @@ def login(body: LoginIn, db: Session = Depends(get_db), s: Settings = Depends(ge
 def demo_accounts(db: Session = Depends(get_db), s: Settings = Depends(get_settings)):
     if not s.demo_mode:
         raise not_found()
-    return db.scalars(select(User).where(User.is_demo.is_(True)).order_by(User.created_at)).all()
+    # The named demo cast only; the 1,000 synthetic Austin residents (app/demo) are people to meet, not logins to pick.
+    from app.demo.austin import DOMAIN
+
+    return db.scalars(select(User).where(User.is_demo.is_(True), User.email.not_like(f"%{DOMAIN}")).order_by(User.created_at)).all()
 
 
 @router.post("/auth/demo-login", response_model=TokenOut)

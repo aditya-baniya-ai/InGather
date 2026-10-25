@@ -16,6 +16,7 @@ ROUTERS = [
     "app.api.chats",
     "app.api.safety",
     "app.api.verification",
+    "app.api.feed",  # Home feed, join requests, demo avatars
     "app.ai.routes",  # plan intake drafts, voice transcription, cover images
     "app.ai.connector",  # MCP endpoint for the user's own Muse agent
 ]

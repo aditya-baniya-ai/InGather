@@ -81,6 +81,13 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "podcasts": ("podcasting",),
     "standup": ("comedy",),
     "improv": ("improv-comedy",),
+    # Austin demo interests outside the Meetup top-5000 topics (none of these keys is itself a vocabulary topic).
+    "paddleboarding": ("kayaking", "outdoors"),
+    "food trucks": ("foodie", "food-lovers"),
+    "vinyl": ("livemusic", "music"),
+    "thrifting": ("bargainhunters", "vintage"),
+    "crafts": ("arts-crafts", "diy"),
+    "sci-fi": ("science-fiction", "scifi"),
 }
 _SPACE = re.compile(r"[\s_]+")
 

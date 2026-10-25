@@ -286,6 +286,7 @@ class ProposalOut(BaseModel):
     group_size: int
     my_status: str
     i_confirmed: bool
+    open_to_requests: bool = False  # owner only: people can ask to join from their Home feed
 
 
 class InvitationOut(BaseModel):
@@ -445,3 +446,59 @@ class VenuePollOut(BaseModel):
 
 class VenueVoteIn(BaseModel):
     option_id: UUID
+
+
+# --- home feed & join requests -----------------------------------------------------------------
+class FeedPerson(BaseModel):
+    first_name: str
+    avatar_url: str | None
+
+
+class FeedItemOut(BaseModel):
+    """An open group as a non-member sees it: no exact time, venue or full names until the host accepts them."""
+
+    proposal_id: UUID
+    title: str
+    activity_type: str
+    city: str
+    day: date
+    part_of_day: str  # morning|afternoon|evening
+    venue_kind: str
+    preview: str | None
+    host: FeedPerson
+    members: list[FeedPerson]
+    group_size: int
+    spots_left: int
+    group_interests: list[str]
+    shared_interests: list[str]
+    match: int  # matcher fit, 0-100
+    reason: str
+    free_then: bool | None  # None when the viewer has no plan in that city
+    request_status: Literal["pending", "accepted", "declined", "withdrawn"] | None
+    welcome: str | None  # Muse-written note once accepted
+
+
+class JoinIn(BaseModel):
+    message: str | None = Field(None, max_length=400)
+
+
+class OpenIn(BaseModel):
+    open: StrictBool
+
+
+class JoinDraftOut(BaseModel):
+    message: str
+    mode: Literal["live", "template"]
+
+
+class JoinRequestOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    display_name: str
+    avatar_url: str | None
+    bio: str | None
+    interests: list[str]
+    message: str | None
+    match: int | None
+    status: str
+    created_at: UTC

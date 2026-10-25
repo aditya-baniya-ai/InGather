@@ -15,6 +15,8 @@ export const keys = {
   blocks: ["blocks"] as const,
   demo: ["demo-accounts"] as const,
   verification: ["verification"] as const,
+  feed: ["feed"] as const,
+  joinRequests: (id: string) => ["join-requests", id] as const,
 };
 
 export const usePlans = () => useQuery({ queryKey: keys.plans, queryFn: api.plans });
@@ -40,6 +42,13 @@ export const useInvitations = () =>
 
 export const useMessages = (id: string, enabled: boolean) =>
   useQuery({ queryKey: keys.messages(id), queryFn: () => api.messages(id), enabled, retry: noRetryOn4xx, refetchInterval: 3000 });
+
+/** Home feed; polls every few seconds while a join request is waiting for an answer. */
+export const useFeed = () =>
+  useQuery({ queryKey: keys.feed, queryFn: api.feed, refetchInterval: (q) => (q.state.data?.some((i) => i.request_status === "pending") ? 2000 : 30000) });
+
+export const useJoinRequests = (id: string | undefined, enabled: boolean) =>
+  useQuery({ queryKey: keys.joinRequests(id ?? ""), queryFn: () => api.joinRequests(id!), enabled: !!id && enabled, retry: noRetryOn4xx, refetchInterval: 5000 });
 
 export const useBlocks = () => useQuery({ queryKey: keys.blocks, queryFn: api.blocks });
 

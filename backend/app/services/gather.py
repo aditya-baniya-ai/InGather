@@ -66,6 +66,10 @@ TITLES = {
     "cafe": "Coffee", "food_hall": "Food hall meetup", "restaurant": "Dinner", "library": "Study session",
     "museum": "Museum visit", "park": "Walk in the park", "conference_venue": "Coffee at the venue", "public_venue": "Meetup",
 }
+SAME_ACTIVITY = {
+    "conference": "also here for a conference", "hackathon": "also at a hackathon", "coffee": "also up for coffee",
+    "study": "also studying this week", "travel": "also exploring the city", "event": "also looking for something to do",
+}
 _STOP = {"people", "person", "someone", "free", "want", "looking", "after", "group", "find", "meet", "with", "some", "near", "into"}
 
 
@@ -266,7 +270,9 @@ class Run:
         lo, hi = self.pick_bounds()
         if hi < 1:
             raise StepError("no_suitable_group", "The group is already full.")
-        base = [(aware(s), aware(e)) for s, e in self.matching.group_availability(self.plan, self.current_member_ids()).windows]
+        soon = datetime.now(timezone.utc) + timedelta(minutes=30)  # never propose a time that has already started
+        base = [(max(aware(s), soon), aware(e)) for s, e in self.matching.group_availability(self.plan, self.current_member_ids()).windows]
+        base = [(s, e) for s, e in base if e - s >= timedelta(minutes=MIN_GROUP_MINUTES)]
         pair = self.matching.cohesion(self.plan, [uuid.UUID(f.preview.user_id) for f in fits]) if hi > 1 else {}
         size_bonus = 1.0  # fill the group size the owner asked for; smaller only when a bigger group shares no time
         time_weight = 0.04 if "schedule" in self.prefs else 0.02
@@ -332,6 +338,17 @@ class Run:
             if place:
                 self.events.add("system", f"Picked the nearest {kind.replace('_', ' ')}: {place['name']}", agent="venue")
                 return {"label": place["name"], "category": kind, "details": place}
+        if self.plan.city.strip().lower() == "austin":  # Muse-found Austin venues (app/demo/venues.py), nearest to the owner
+            from app.demo.venues import load_catalog, nearest
+
+            home = (self.owner.home_lat, self.owner.home_lng) if self.owner.home_lat is not None else None
+            avoid = {self.previous.venue_label} if self.previous and "different_activity" in self.prefs else set()
+            place = nearest(load_catalog(self.settings), kinds, home, avoid)
+            if place:
+                self.events.add("system", f"Picked {place['name']} from Austin places found with Muse web search", agent="venue")
+                details = {"name": place["name"], "category": place["category"], "address": place.get("area") or place["area_name"],
+                           "source": "Muse Spark web search", "source_url": place.get("source_url")}
+                return {"label": place["name"][:160], "category": place["category"], "details": details}
         kind = kinds[0]
         label = (f"A public {kind.replace('_', ' ')} in {self.plan.city} (choose exact location)" if self.plan.public_location
                  else GENERIC.get(kind, GENERIC["public_venue"]).format(city=self.plan.city))
@@ -369,7 +386,7 @@ class Run:
             mine, theirs = p.related[0]
             bits.append(f"into {theirs}, close to your interest in {mine}")
         if f.same_activity:
-            bits.append(f"also here for a {self.plan.activity_type}" if self.plan.activity_type != "other" else "similar plans")
+            bits.append(SAME_ACTIVITY.get(self.plan.activity_type, "similar plans"))
         elif not bits:
             bits.append(f"planning {p.activity_type} in {self.plan.city}")
         hours = f.overlap_hours

@@ -13,17 +13,32 @@ cp .env.example .env        # then put your MODEL_API_KEY in .env
 docker compose up --build   # http://localhost:8000
 ```
 
-On startup the container runs the database migrations. When `DEMO_MODE=true` it also loads 11 fictional demo accounts. On the sign-in page, use **Continue as Alice** (password `demo-password` for any `<name>@ingather.example`).
+On startup the container runs the database migrations. When `DEMO_MODE=true` it also loads:
+- 11 fictional demo accounts to sign in with. Use **Continue as Alice** (password `demo-password` for any `<name>@ingather.example`).
+- **1,000 fictional Austin residents** with realistic names, an "about" text, interests and free times for the coming week.
+- **150 open groups** among them that the ML matcher formed, each with one or two spots left. These fill the Home feed.
+
+The first start takes about a minute for this; later starts only top up and move plans to the current week. Set `DEMO_SYNTHETIC_USERS=0` to skip it.
+
+Optional, once, with your Muse key (results are stored, so you never need to run it again):
+```bash
+docker compose exec app python -m app.demo.enrich --all
+```
+- **`--venues`:** finds real Austin cafés, food halls and libraries with Muse Spark web search, keeping only results backed by a source page. Groups then meet at those places.
+- **`--bios`:** rewrites the 1,000 generated "about" texts in natural, first-person voice.
 
 To reset the demo data: `docker compose down -v && docker compose up`.
 
-Matching never needs `MODEL_API_KEY`: it runs on the server's own model and costs no tokens. The key only turns on the Muse features below ("Describe it", voice, cover images).
+Matching never needs `MODEL_API_KEY`: it runs on the server's own model and costs no tokens. The key turns on the Muse features below, which work before and after matching.
 
 ## Meta AI in the product
 
 | Model | Where |
 |---|---|
 | `muse-spark-1.3`: **Intake agent** | "Describe it" mode on Create Plan: it turns a sentence ("HackTX Oct 24–25 at UT Austin from 10am") into a pre-filled form you review. Nothing saves until you do. |
+| `muse-spark-1.3` + web search: **venue agent** | Finds three real public places near the middle of a group for the group to vote on, and builds the Austin venue catalog (`app/demo/venues.py`). Only results backed by a source page count as verified. |
+| `muse-spark-1.3`: **join helpers** | "Write it with Muse" drafts your intro when you ask to join a group, using your own profile. After the host accepts, Muse writes your welcome note. Without a key both use plain templates. |
+| `muse-spark-1.3`: **icebreaker and demo bios** | The group chat's opening question once a meetup is confirmed, and the one-time rewrite of the demo people's "about" texts. |
 | `muse-image-1.0` | Plan cover images, generated only from activity, city and interests (no personal data). |
 | `muse-voice-transcribe-1.0` | Speak your plan instead of typing it. |
 | Muse connector (MCP at `/mcp`) | Lets your own Muse agent list your plans, run your Gather Agent and read your invitations, using a revocable token from Profile. It can't approve or confirm anything. |
@@ -49,6 +64,19 @@ The fit part is trained on 300k real join decisions from the public Meetup.com d
 Plan context (activity, intent, same event, free-time overlap) isn't in that dataset, so it is simulated on top. Those weights are assumptions until real InGather outcomes exist to retrain on. Details, the leakage check and how to retrain: [backend/ml/README.md](backend/ml/README.md).
 
 Serving needs only numpy. The trees ship as JSON in `backend/app/ml/artifacts/`, so there are no pickle files.
+
+## Home feed: groups with room for you
+
+Home shows open groups that have one or two spots left, ranked for you by the matcher. It compares your interests and plans with the group's: the host's plan plus the interests of the people already in it. If you have a plan in that city, it also checks whether you're free then.
+
+Each card shows the activity, the day and part of day, the kind of place, first names, the interests you share and a fit score. The exact time, the venue and full names are shared only once the host accepts you.
+
+To join:
+1. Press **Ask to join**.
+2. Optionally add a note, or have Muse draft one from your profile.
+3. The host sees your name, bio, interests and note, then accepts or declines. A decline is private, and that group stops appearing in your feed.
+
+In `DEMO_MODE`, the fictional Austin hosts answer within a few seconds, based on the same fit score. Real hosts answer on their proposal page, where they can also turn **Let people ask to join** on or off.
 
 ## Account verification
 

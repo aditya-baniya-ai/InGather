@@ -368,6 +368,7 @@ class Proposals:
             group_size=self._group_size(proposal),
             my_status=me.status if me else MemberStatus.accepted,
             i_confirmed=bool(me and me.final_confirmed_version == proposal.version),
+            open_to_requests=proposal.open_to_requests if owner else False,
         )
 
     # --- internals -----------------------------------------------------------------------------

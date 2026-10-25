@@ -1,0 +1,148 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { ArrowRight, BrainCircuit, Check, Clock, Send, Sparkles, UsersRound } from "lucide-react";
+import { Cover } from "./Brand";
+import { Avatar, Button, EmptyState, ErrorState, InlineError, LoadingBlock, Pill, SectionTitle, cx } from "./ui";
+import { api, type FeedItem } from "../lib/api";
+import { keys, useFeed } from "../lib/hooks";
+
+/** "Tue, Oct 27" from a plain YYYY-MM-DD (the group's local date). */
+export function dayLabel(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
+const PART = { morning: "Morning", afternoon: "Afternoon", evening: "Evening" };
+
+function People({ item }: { item: FeedItem }) {
+  const everyone = [item.host, ...item.members];
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex -space-x-2">
+        {everyone.map((p, i) => <span key={i} className="rounded-full ring-2 ring-surface"><Avatar name={p.first_name} src={p.avatar_url} size={32} /></span>)}
+        {Array.from({ length: item.spots_left }, (_, i) => (
+          <span key={`open-${i}`} className="grid size-8 place-items-center rounded-full border-2 border-dashed border-ig-pink/40 bg-surface text-[11px] font-medium text-rose-ink ring-2 ring-surface" aria-hidden>+1</span>
+        ))}
+      </div>
+      <p className="text-[13.5px] text-muted">
+        {everyone.map((p) => p.first_name).join(", ")} · {item.spots_left > 0
+          ? <span className="font-medium text-rose-ink">{item.spots_left} {item.spots_left === 1 ? "spot" : "spots"} left</span>
+          : <span>{everyone.length} going</span>}
+      </p>
+    </div>
+  );
+}
+
+function JoinForm({ item, onDone }: { item: FeedItem; onDone: () => void }) {
+  const qc = useQueryClient();
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState<"draft" | "send" | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [drafted, setDrafted] = useState<"live" | "template" | null>(null);
+  const draft = async () => {
+    setBusy("draft"); setError(null);
+    try { const d = await api.draftJoin(item.proposal_id); setMessage(d.message); setDrafted(d.mode); } catch (e) { setError(e); } finally { setBusy(null); }
+  };
+  const send = async () => {
+    setBusy("send"); setError(null);
+    try {
+      const updated = await api.askToJoin(item.proposal_id, message.trim() || null);
+      qc.setQueryData<FeedItem[]>(keys.feed, (old) => old?.map((i) => (i.proposal_id === updated.proposal_id ? updated : i)));
+      onDone();
+    } catch (e) { setError(e); } finally { setBusy(null); }
+  };
+  return (
+    <div className="rise mt-4 rounded-2xl bg-raised p-4">
+      <label htmlFor={`msg-${item.proposal_id}`} className="text-[14px] font-medium">Say hi to {item.host.first_name} <span className="font-normal text-muted">(optional)</span></label>
+      <textarea id={`msg-${item.proposal_id}`} rows={3} maxLength={400} value={message} onChange={(e) => setMessage(e.target.value)}
+        placeholder={`Hi! ${item.title} sounds fun. Would love to join.`}
+        className="mt-2 w-full resize-none rounded-2xl border border-line bg-surface px-4 py-3 text-[14.5px] leading-relaxed outline-none focus:border-violet" />
+      {drafted && <p className="mt-1 text-[12.5px] text-muted">{drafted === "live" ? "Drafted by Muse Spark from your profile. Edit it however you like." : "A starting point. Edit it however you like."}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={send} loading={busy === "send"} icon={<Send className="size-4" aria-hidden />}>Send request</Button>
+        <Button variant="secondary" size="sm" onClick={draft} loading={busy === "draft"} icon={<Sparkles className="size-4" aria-hidden />}>Write it with Muse</Button>
+        <Button variant="ghost" size="sm" onClick={onDone}>Cancel</Button>
+      </div>
+      <p className="mt-2 text-[12.5px] text-muted">{item.host.first_name} sees your name, bio, interests and this note. The exact time and place are shared once you're in.</p>
+      <InlineError error={error} />
+    </div>
+  );
+}
+
+export function FeedCard({ item }: { item: FeedItem }) {
+  const qc = useQueryClient();
+  const [joining, setJoining] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const withdraw = async () => {
+    setError(null);
+    try { await api.withdrawJoin(item.proposal_id); qc.invalidateQueries({ queryKey: keys.feed }); } catch (e) { setError(e); }
+  };
+  const shared = new Set(item.shared_interests.map((i) => i.toLowerCase()));
+  return (
+    <article className="overflow-hidden rounded-[24px] border border-line bg-surface" aria-labelledby={`feed-${item.proposal_id}`}>
+      <header className="flex items-center gap-3 px-4 py-3">
+        <Avatar name={item.host.first_name} src={item.host.avatar_url} size={36} ring />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[14px] font-semibold">{item.host.first_name}'s group</p>
+          <p className="truncate text-[12.5px] text-muted">{item.city} · {dayLabel(item.day)} · {PART[item.part_of_day]}</p>
+        </div>
+        <Pill tone="emerald"><BrainCircuit className="size-3" aria-hidden /> {item.match}% fit</Pill>
+      </header>
+      <Cover activity={item.activity_type} city={item.city} className="h-40 w-full" />
+      <div className="p-4">
+        <h3 id={`feed-${item.proposal_id}`} className="text-[17px] font-semibold">{item.title}</h3>
+        <p className="mt-0.5 text-[13.5px] text-muted">{item.venue_kind} in {item.city}{item.preview ? ` · ${item.preview}` : ""}</p>
+        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Group interests">
+          {item.group_interests.map((i) => (
+            <li key={i} className={cx("rounded-full px-2.5 py-1 text-[12.5px]", shared.has(i.toLowerCase()) ? "bg-violet-soft font-medium text-violet-ink" : "bg-raised text-muted")}>{i}</li>
+          ))}
+        </ul>
+        <div className="mt-3"><People item={item} /></div>
+        <p className="mt-3 flex items-start gap-1.5 text-[13.5px]"><BrainCircuit className="mt-0.5 size-3.5 shrink-0 text-violet" aria-hidden /> {item.reason}</p>
+
+        {item.request_status === "accepted" ? (
+          <div className="mt-4 rounded-2xl bg-emerald-soft p-4">
+            <p className="flex items-center gap-1.5 font-semibold text-emerald-ink"><Check className="size-4" aria-hidden /> You're in!</p>
+            {item.welcome && <p className="mt-1 text-[14px]">{item.welcome}</p>}
+            <Link to={`/proposals/${item.proposal_id}`} className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-[14.5px] font-medium underline-offset-4 hover:underline">
+              Open the group <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
+        ) : item.request_status === "pending" ? (
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Pill tone="amber"><Clock className="size-3" aria-hidden /> Request sent · waiting for {item.host.first_name}</Pill>
+            <Button variant="ghost" size="sm" onClick={withdraw}>Withdraw</Button>
+          </div>
+        ) : joining ? (
+          <JoinForm item={item} onDone={() => setJoining(false)} />
+        ) : (
+          <Button className="mt-4" onClick={() => setJoining(true)} icon={<UsersRound className="size-4" aria-hidden />}>Ask to join</Button>
+        )}
+        <InlineError error={error} />
+      </div>
+    </article>
+  );
+}
+
+/** Home feed: open groups with room for one or two more, ranked for you by the InGather matcher. */
+export function FeedSection() {
+  const feed = useFeed();
+  return (
+    <section className="mt-8" aria-labelledby="feed-title">
+      <SectionTitle id="feed-title">Groups with room for you</SectionTitle>
+      <p className="-mt-2 mb-4 flex items-center gap-1.5 text-[13.5px] text-muted">
+        <BrainCircuit className="size-3.5" aria-hidden /> Ranked for you by the InGather matcher from your interests and plans. Hosts approve every request.
+      </p>
+      {feed.isPending ? <LoadingBlock label="Finding groups for you" rows={2} />
+        : feed.isError ? <ErrorState error={feed.error} onRetry={() => feed.refetch()} what="your feed" />
+          : feed.data.length === 0 ? (
+            <EmptyState title="No open groups for you right now.">
+              When people near your plans have a spot open, they'll show up here. Verified accounts only.
+            </EmptyState>
+          ) : (
+            <div className="flex flex-col gap-5">{feed.data.map((i) => <FeedCard key={i.proposal_id} item={i} />)}</div>
+          )}
+    </section>
+  );
+}

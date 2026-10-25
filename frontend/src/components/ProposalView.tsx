@@ -8,6 +8,7 @@ import { formatDay } from "../lib/time";
 import { MEMBER_STATUS, PROPOSAL_STATUS } from "../lib/vocab";
 import { CandidateList } from "./CandidateList";
 import { SafetyActions } from "./SafetyActions";
+import { JoinRequests } from "./JoinRequests";
 import { FinalizeForm, SafeMeet, VenueTime } from "./SafeMeet";
 import { VenueVote, canVoteVenue } from "./VenueVote";
 import { Avatar, Button, InlineError, Panel, Pill } from "./ui";
@@ -144,6 +145,7 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
           </Panel>
         )}
         {p.members.some((m) => !m.is_initiator && ["invited", "accepted", "declined"].includes(m.status)) && <Roster p={p} title="Invitations" />}
+        <JoinRequests p={p} />
         {canFinalize && (!final || editing) && (
           <Panel className="p-5 sm:p-6" aria-labelledby="finalize-title">
             <h2 id="finalize-title" className="mb-4 section-title">{final ? "Change final details" : "Set the final public place and time"}</h2>

@@ -179,6 +179,14 @@ def main() -> None:
     with SessionLocal() as db:
         users = Seeder(db).run()
     print(f"Seeded {len(users)} fictional demo users at {datetime.now():%H:%M} (password: {PASSWORD}).")
+    settings = get_settings()
+    if settings.demo_synthetic_users > 0:
+        from app.demo.austin import seed_austin
+
+        with SessionLocal() as db:
+            stats = seed_austin(db, settings)
+        print(f"Austin demo: {stats['people']} fictional residents ({stats['created']} new, {stats['refreshed']} moved to this week), "
+              f"{stats['groups']} open groups ({stats['stale_groups']} stale ones rebuilt).")
 
 
 if __name__ == "__main__":
