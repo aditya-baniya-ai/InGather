@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { EyeOff } from "lucide-react";
-import { AppShell, SafetyTips } from "../components/AppShell";
+import { AppShell } from "../components/AppShell";
 import { AgentTimeline } from "../components/AgentTimeline";
 import { GatherChat } from "../components/GatherChat";
 import { ProposalView } from "../components/ProposalView";
@@ -21,8 +21,8 @@ function OwnerAgentPanel({ proposal, inline }: { proposal: Proposal; inline?: bo
     </div>
   );
   // Below xl the right rail is hidden: surface the agent inline while it is actually working.
-  if (inline) return run.data?.status === "running" ? <div className="mb-4 xl:hidden">{activity}</div> : null;
-  return <div className="flex flex-col gap-4">{activity}<SafetyTips /></div>;
+  if (inline) return run.data?.status === "running" && proposal.status !== "confirmed" ? <div className="mb-4 xl:hidden">{activity}</div> : null;
+  return proposal.status === "confirmed" ? null : activity || null;
 }
 
 export function NotAvailable() {

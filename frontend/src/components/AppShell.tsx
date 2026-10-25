@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Home, Inbox, PlusSquare, ShieldCheck, UserRound } from "lucide-react";
+import { Home, Inbox, PlusSquare, UserRound } from "lucide-react";
 import { useInvitations } from "../lib/hooks";
 import { AccountMenu } from "./AccountMenu";
 import { LogoMark, Wordmark } from "./Brand";
@@ -85,14 +85,16 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
           {children}
           <footer className="mt-16 text-[12.5px] leading-relaxed text-muted">{DISCLAIMER}</footer>
         </main>
-        <aside aria-label="Context" className={cx("sticky top-0 hidden h-dvh shrink-0 overflow-y-auto pt-20 pb-10 xl:block", chatAside ? "w-[360px] 2xl:w-[400px]" : "w-[320px]")}>
-          {aside ?? <SafetyTips />}
-        </aside>
+        {aside && (
+          <aside aria-label="Context" className={cx("sticky top-0 hidden h-dvh shrink-0 overflow-y-auto pt-20 pb-10 xl:block", chatAside ? "w-[360px] 2xl:w-[400px]" : "w-[320px]")}>
+            {aside}
+          </aside>
+        )}
       </div>
 
       {/* Mobile bottom nav */}
       <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
-        <ul className="grid grid-cols-5">
+        <ul className="grid grid-cols-4">
           {NAV.map(({ to, label, icon: Icon }) => (
             <li key={to}>
               <NavLink to={to} className={() => cx("press relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px]", isCurrent(to) ? "font-semibold text-ink" : "text-muted")}>
@@ -106,22 +108,6 @@ export function AppShell({ children, aside, chatAside = false }: { children: Rea
           ))}
         </ul>
       </nav>
-    </div>
-  );
-}
-
-export function SafetyTips() {
-  return (
-    <div className="rounded-[24px] bg-gradient-to-br from-emerald-soft to-surface p-5 shadow-[0_10px_30px_-16px_rgb(22_139_115/0.35)]">
-      <h2 className="flex items-center gap-2 text-[15px] font-semibold"><ShieldCheck className="size-4 text-emerald" aria-hidden /> Meeting someone new</h2>
-      <ul className="mt-3 flex flex-col gap-2.5 text-[14px] leading-snug text-ink/90">
-        <li>Meet in a public, populated place.</li>
-        <li>Arrange your own transportation.</li>
-        <li>Keep your home, hotel and phone number to yourself.</li>
-        <li>Tell someone you trust where you'll be.</li>
-        <li>Leave whenever you feel uncomfortable. You never owe anyone a reason.</li>
-      </ul>
-      <p className="mt-4 text-[13px] text-muted">Identity verification helps confirm identity. It cannot guarantee someone's behavior.</p>
     </div>
   );
 }
