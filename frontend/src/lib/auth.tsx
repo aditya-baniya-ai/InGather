@@ -13,6 +13,13 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
+const LAST_USER_KEY = "ingather.lastUser";
+
+/** Who was signed in last on this browser; kept after sign-out so a remembered page is only reopened for that same person. */
+export function previousUserId(): string | null {
+  try { return localStorage.getItem(LAST_USER_KEY); } catch { return null; }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -38,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     api.setToken(t.access_token);
     setToken(t.access_token);
     qc.setQueryData(["me"], t.user);
+    try { localStorage.setItem(LAST_USER_KEY, t.user.id); } catch { /* storage unavailable: fine */ }
   }, [qc]);
 
   const meQuery = useQuery({ queryKey: ["me"], queryFn: api.me, enabled: !!token, staleTime: 30_000 });

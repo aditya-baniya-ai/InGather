@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { FlaskConical } from "lucide-react";
 import { api, type TokenOut } from "../lib/api";
-import { useAuth } from "../lib/auth";
+import { previousUserId, useAuth } from "../lib/auth";
 import { useDemoAccounts } from "../lib/hooks";
 import { Wordmark } from "../components/Brand";
 import { DISCLAIMER } from "../components/AppShell";
@@ -61,7 +61,12 @@ export function Login() {
 
   const joining = mode === "join";
   const pw = passwordCheck(password, confirm);
-  const done = (t: TokenOut, to = from) => { setNext(to); signIn(t); };
+  // A remembered page belongs to whoever was signed in before; anyone else starts at Home.
+  const done = (t: TokenOut, to?: string) => {
+    const prev = previousUserId();
+    setNext(to ?? (prev && prev !== t.user.id ? "/home" : from));
+    signIn(t);
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (joining && !pw.ok) return;
