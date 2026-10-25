@@ -14,9 +14,10 @@ SCENES = {
 }
 
 REALISM = (
-    "Candid documentary photo taken on a phone, eye level, available light, slightly imperfect framing, "
-    "real textures and everyday clutter, natural colors, no dramatic lighting, no bokeh fireworks, no glossy CGI or "
-    "illustration look, no posed models, faces small or turned away, no text, no logos, wide landscape composition."
+    "Candid documentary photo taken on a phone, eye level, available light, natural framing, lived-in ordinary details, "
+    "natural colors, no dramatic lighting, no glossy CGI or illustration look, no posed models, faces small or turned "
+    "away, no text, no logos, wide landscape composition. The setting is always a public place (street, park, trail, "
+    "café, restaurant, market, library, campus, venue), never a private home, apartment, bedroom or hotel room."
 )
 
 

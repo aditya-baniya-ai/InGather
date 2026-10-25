@@ -8,11 +8,13 @@ interest tags. Never names, plan text or locations of people.
 
 import json
 import logging
+import re
 
 from app.ai.imagery import REALISM, SCENES
 from app.ai.intake import answer_text, obj, parse_json
 
 log = logging.getLogger(__name__)
+PRIVATE = re.compile(r"\b(apartment|bedroom|living room|dorm|hotel room|someone's home|their home|house party|couch|sofa)\b", re.I)
 
 SCHEMA = obj({
     "scene": {"type": "string", "description": "One paragraph, 40-90 words: the exact photo to take"},
@@ -26,6 +28,10 @@ INSTRUCTIONS = (
     "(food, gear, signage shapes, textures, weather). Match the activity exactly: a taco hunt shows tacos and a taqueria "
     "or food truck, a sunrise hike shows a trail at dawn, a study group shows notes and books. People are seen from "
     "behind or small in frame, never identifiable. No text, words, logos or brand names in the image. No famous people. "
+    "The setting is ALWAYS a public place where the group meets; never a private home, apartment, bedroom, dorm room or "
+    "hotel room, and never a messy or abandoned interior. If the title and the kind of activity disagree, show the "
+    "title's activity at that kind of public place (e.g. a photo walk starting from a café shows people with cameras "
+    "on a lively street outside a café). "
     "Write only the scene, as plain description, no camera jargon."
 )
 
@@ -55,7 +61,9 @@ class SceneAgent:
         except Exception as exc:
             log.warning("scene brief failed: %s", type(exc).__name__)
             scene = ""
-        return scene[:900] if len(scene) >= 30 else fallback_brief(title, activity, city, part_of_day)
+        if len(scene) < 30 or PRIVATE.search(scene):  # never render someone's home, whatever the model wrote
+            return fallback_brief(title, activity, city, part_of_day)
+        return scene[:900]
 
     def render(self, brief: str):
         """Muse Image, with the shared realism rules (phone photo, natural light, no text, no posed faces)."""
