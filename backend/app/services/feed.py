@@ -137,7 +137,9 @@ class Feed:
         return out
 
     # ----- the feed -----
-    def items(self, viewer: User, limit: int = 20) -> list[FeedItemOut]:
+    def items(self, viewer: User, limit: int = 50, sort: str = "match") -> list[FeedItemOut]:
+        """Open groups for the viewer. `sort`: "match" (best fit first, sooner first on ties) or "soonest" (earliest
+        first, best fit first on ties). Groups they asked to join or joined always come first."""
         if not self.policy.can_discover(viewer):
             return []
         q = select(Proposal).where(Proposal.open_to_requests.is_(True), Proposal.status.in_(JOINABLE),
@@ -156,7 +158,12 @@ class Feed:
         joined = [self.db.get(Proposal, r.proposal_id) for r in requests.values() if r.status == JoinStatus.accepted]
         joined = [(p, self._plan(p)) for p in joined if p and p.status != ProposalStatus.cancelled]
         scored = [(*sc, p, plan) for (p, plan), sc in zip(groups + joined, self.score_many(viewer, groups + joined))]
-        top = sorted(scored[:len(groups)], key=lambda t: (requests.get(t[4].id) is None, -t[0], str(t[4].id)))[:limit]
+        def key(t):
+            fit, start = round(t[1] * 100), as_utc(t[4].start_at)  # sort on the fit people see, not a hidden score
+            not_asked = requests.get(t[4].id) is None
+            return (not_asked, -fit, start, str(t[4].id)) if sort == "match" else (not_asked, start, -fit, str(t[4].id))
+
+        top = sorted(scored[:len(groups)], key=key)[:limit]
         return [self._item(fit, p, plan, shared, free_then, requests.get(p.id))
                 for _, fit, shared, free_then, p, plan in scored[len(groups):] + top]
 

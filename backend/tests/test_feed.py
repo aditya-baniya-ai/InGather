@@ -61,6 +61,20 @@ def test_feed_ranks_open_groups_without_revealing_details(db, users, settings, a
     assert "venue_label" not in dumped and "start_at" not in dumped and "email" not in str(dumped)
 
 
+def test_feed_sorts_by_match_or_soonest_and_keeps_requests_on_top(db, users, settings, austin):
+    feed, alice = Feed(db, settings), users["alice"]
+    by_match = feed.items(alice, sort="match")
+    assert [i.match for i in by_match] == sorted((i.match for i in by_match), reverse=True)
+    starts = {p.id: p.start_at for p in groups(db)}
+    soonest = feed.items(alice, sort="soonest")
+    assert [starts[i.proposal_id] for i in soonest] == sorted(starts[i.proposal_id] for i in soonest)
+    assert {i.proposal_id for i in by_match} == {i.proposal_id for i in soonest}
+    last = soonest[-1].proposal_id
+    feed.request(alice, last, None)
+    for order in ("match", "soonest"):
+        assert feed.items(alice, sort=order)[0].proposal_id == last  # a pending request stays first
+
+
 def test_blocked_hosts_and_members_are_hidden(db, users, settings, austin):
     target = groups(db)[0]
     db.add(Block(blocker_id=target.members[-1].user_id, blocked_id=users["alice"].id))

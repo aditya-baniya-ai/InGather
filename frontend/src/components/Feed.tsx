@@ -5,6 +5,7 @@ import { ArrowRight, BrainCircuit, Check, Clock, Send, Sparkles, UsersRound } fr
 import { Cover } from "./Brand";
 import { Avatar, Button, EmptyState, ErrorState, InlineError, LoadingBlock, Pill, SectionTitle, cx } from "./ui";
 import { api, type FeedItem } from "../lib/api";
+import { DAYS, SORTS, matchesDay, remember, remembered, type DayFilter, type FeedSort } from "../lib/feed";
 import { keys, useFeed } from "../lib/hooks";
 
 /** "Tue, Oct 27" from a plain YYYY-MM-DD (the group's local date). */
@@ -48,7 +49,8 @@ function JoinForm({ item, onDone }: { item: FeedItem; onDone: () => void }) {
     setBusy("send"); setError(null);
     try {
       const updated = await api.askToJoin(item.proposal_id, message.trim() || null);
-      qc.setQueryData<FeedItem[]>(keys.feed, (old) => old?.map((i) => (i.proposal_id === updated.proposal_id ? updated : i)));
+      qc.setQueriesData<FeedItem[]>({ queryKey: keys.feed }, (old) => old?.map((i) => (i.proposal_id === updated.proposal_id ? updated : i)));
+      qc.invalidateQueries({ queryKey: keys.feed });  // the other sort order, and the request moves to the top
       onDone();
     } catch (e) { setError(e); } finally { setBusy(null); }
   };
@@ -125,23 +127,48 @@ export function FeedCard({ item }: { item: FeedItem }) {
   );
 }
 
+function ChipGroup<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+      <span className="shrink-0 text-[12.5px] font-medium text-muted">{label}</span>
+      {options.map((o) => (
+        <button key={o.value} type="button" role="radio" aria-checked={value === o.value} onClick={() => onChange(o.value)}
+          className={cx("press min-h-9 shrink-0 rounded-full px-3.5 text-[13.5px] transition-colors",
+            value === o.value ? "bg-ink font-medium text-surface" : "bg-raised text-ink hover:bg-sunk")}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Home feed: open groups with room for one or two more, ranked for you by the InGather matcher. */
 export function FeedSection() {
-  const feed = useFeed();
+  const [sort, setSort] = useState<FeedSort>(() => remembered("ingather.feedSort", ["match", "soonest"] as const, "match"));
+  const [day, setDay] = useState<DayFilter>(() => remembered("ingather.feedDay", ["any", "today", "tomorrow", "weekend"] as const, "any"));
+  const feed = useFeed(sort);
+  const shown = (feed.data ?? []).filter((i) => i.request_status || matchesDay(i.day, day));
   return (
     <section className="mt-8" aria-labelledby="feed-title">
       <SectionTitle id="feed-title">Groups with room for you</SectionTitle>
       <p className="-mt-2 mb-4 flex items-center gap-1.5 text-[13.5px] text-muted">
         <BrainCircuit className="size-3.5" aria-hidden /> Ranked for you by the InGather matcher from your interests and plans. Hosts approve every request.
       </p>
+      <div className="mb-4 flex flex-col gap-2">
+        <ChipGroup label="Sort" value={sort} options={SORTS} onChange={(v) => { setSort(v); remember("ingather.feedSort", v); }} />
+        <ChipGroup label="When" value={day} options={DAYS} onChange={(v) => { setDay(v); remember("ingather.feedDay", v); }} />
+      </div>
       {feed.isPending ? <LoadingBlock label="Finding groups for you" rows={2} />
         : feed.isError ? <ErrorState error={feed.error} onRetry={() => feed.refetch()} what="your feed" />
-          : feed.data.length === 0 ? (
-            <EmptyState title="No open groups for you right now.">
-              When people near your plans have a spot open, they'll show up here. Verified accounts only.
+          : shown.length === 0 ? (
+            <EmptyState title={day === "any" ? "No open groups for you right now." : `No open groups ${DAYS.find((d) => d.value === day)?.label.toLowerCase()}.`}>
+              {day === "any" ? "When people near your plans have a spot open, they'll show up here. Verified accounts only." : "Try another day, or check back later."}
             </EmptyState>
           ) : (
-            <div className="flex flex-col gap-5">{feed.data.map((i) => <FeedCard key={i.proposal_id} item={i} />)}</div>
+            <>
+              <p className="mb-3 text-[13px] text-muted" aria-live="polite">{shown.length} {shown.length === 1 ? "group" : "groups"} · {sort === "match" ? "best match first" : "soonest first"}</p>
+              <div className="flex flex-col gap-5">{shown.map((i) => <FeedCard key={i.proposal_id} item={i} />)}</div>
+            </>
           )}
     </section>
   );

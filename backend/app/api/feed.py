@@ -1,6 +1,7 @@
 """Home feed, join requests and the demo people's avatars (docs/api-contract.md, "Home feed")."""
 
 import re
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Response
@@ -24,8 +25,8 @@ def feed(db: Session = Depends(get_db), s: Settings = Depends(get_settings)) -> 
 
 
 @router.get("/feed", response_model=list[FeedItemOut])
-def home_feed(user: User = Depends(current_user), svc: Feed = Depends(feed)):
-    return svc.items(user)
+def home_feed(sort: Literal["match", "soonest"] = "match", user: User = Depends(current_user), svc: Feed = Depends(feed)):
+    return svc.items(user, sort=sort)
 
 
 def _item(svc: Feed, user: User, proposal_id: UUID) -> FeedItemOut:

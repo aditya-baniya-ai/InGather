@@ -310,7 +310,7 @@ export class ApiClient {
   sendMessage = (id: string, body: string) => this.post<Message>(`/api/proposals/${id}/messages`, { body });
 
   // home feed & join requests
-  feed = () => this.get<FeedItem[]>("/api/feed");
+  feed = (sort: "match" | "soonest" = "match") => this.get<FeedItem[]>(`/api/feed?sort=${sort}`);
   askToJoin = (id: string, message: string | null) => this.post<FeedItem>(`/api/proposals/${id}/join`, { message });
   withdrawJoin = (id: string) => this.request<void>("DELETE", `/api/proposals/${id}/join`);
   draftJoin = (id: string) => this.post<{ message: string; mode: "live" | "template" }>(`/api/proposals/${id}/join/draft`);

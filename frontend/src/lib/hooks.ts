@@ -43,9 +43,12 @@ export const useInvitations = () =>
 export const useMessages = (id: string, enabled: boolean) =>
   useQuery({ queryKey: keys.messages(id), queryFn: () => api.messages(id), enabled, retry: noRetryOn4xx, refetchInterval: 3000 });
 
-/** Home feed; polls every few seconds while a join request is waiting for an answer. */
-export const useFeed = () =>
-  useQuery({ queryKey: keys.feed, queryFn: api.feed, refetchInterval: (q) => (q.state.data?.some((i) => i.request_status === "pending") ? 2000 : 30000) });
+/** Home feed in the chosen order; polls every few seconds while a join request is waiting for an answer. */
+export const useFeed = (sort: "match" | "soonest" = "match") =>
+  useQuery({
+    queryKey: [...keys.feed, sort], queryFn: () => api.feed(sort), placeholderData: (prev) => prev,
+    refetchInterval: (q) => (q.state.data?.some((i) => i.request_status === "pending") ? 2000 : 30000),
+  });
 
 export const useJoinRequests = (id: string | undefined, enabled: boolean) =>
   useQuery({ queryKey: keys.joinRequests(id ?? ""), queryFn: () => api.joinRequests(id!), enabled: !!id && enabled, retry: noRetryOn4xx, refetchInterval: 5000 });

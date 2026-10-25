@@ -194,7 +194,7 @@ Replans (`pass`, `decline`, `feedback`) keep people still on the open proposal a
 ## Home feed and join requests — `app/api/feed.py`, `app/services/feed.py` (v4)
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | /api/feed | – | `[FeedItemOut]`: up to 20 open groups ranked by the matcher for the viewer (empty unless `can_discover`). Groups the viewer joined from the feed come first. |
+| GET | /api/feed?sort=match\|soonest | – | `[FeedItemOut]`: up to 50 open groups for the viewer (empty unless `can_discover`). `match` (default) orders by the displayed fit, sooner first on ties; `soonest` orders by start time, best fit first on ties. Groups the viewer joined or asked to join always come first. The UI also filters by day (Any day / Today / Tomorrow / This weekend). |
 | POST | /api/proposals/{id}/join | `{message?: str ≤400}` | `FeedItemOut` (201). 404 unless the group is joinable and visible to the viewer. Idempotent while pending or accepted; a declined requester gets 404. In DEMO_MODE a fictional host answers a few seconds later. |
 | DELETE | /api/proposals/{id}/join | – | 204: withdraws a pending request. |
 | POST | /api/proposals/{id}/join/draft | – | `{message, mode: "live"\|"template"}`: Muse Spark drafts an intro from the viewer's own bio and interests. Nothing is sent. |
