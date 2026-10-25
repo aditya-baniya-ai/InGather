@@ -11,6 +11,7 @@ from app.schemas import (
     ConfirmIn,
     FeedbackIn,
     FinalizeIn,
+    GroupOut,
     InvitationOut,
     MessageIn,
     MessageOut,
@@ -89,6 +90,12 @@ def approve_invitations(proposal_id: UUID, body: ApproveIn, ctx: Ctx = Depends()
 @router.get("/invitations", response_model=list[InvitationOut])
 def invitations(ctx: Ctx = Depends()):
     return ctx.proposals.invitations(ctx.user)
+
+
+@router.get("/groups", response_model=list[GroupOut])
+def my_groups(ctx: Ctx = Depends()):
+    """Groups I host or have joined (invitations still waiting for an answer stay on /invitations)."""
+    return ctx.proposals.groups(ctx.user)
 
 
 @router.post("/proposals/{proposal_id}/respond", response_model=ProposalOut)

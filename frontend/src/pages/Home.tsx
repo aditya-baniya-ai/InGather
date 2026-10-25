@@ -5,9 +5,10 @@ import { AppShell } from "../components/AppShell";
 import { Cover } from "../components/Brand";
 import { FeedSection } from "../components/Feed";
 import { PlanCard } from "../components/PlanCard";
-import { EmptyState, ErrorState, LoadingBlock, SectionTitle, cx } from "../components/ui";
+import { Avatar, EmptyState, ErrorState, LoadingBlock, Pill, SectionTitle, cx } from "../components/ui";
 import { useAuth } from "../lib/auth";
-import { useInvitations, usePlans } from "../lib/hooks";
+import { useGroups, useInvitations, usePlans } from "../lib/hooks";
+import type { GroupSummary } from "../lib/api";
 import { CATEGORIES } from "../lib/vocab";
 
 const IDEAS = [
@@ -16,6 +17,38 @@ const IDEAS = [
   { activity: "study", goal: "Looking for a small study group at the library on weekday evenings." },
   { activity: "coffee", goal: "New to the city and up for a Saturday coffee with a few people into design." },
 ];
+
+const STATUS: Record<string, string> = { invites_pending: "Picking a place", awaiting_final: "Confirming details", confirmed: "Confirmed" };
+const dayLabel = (d: string | null) => d ? new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }) : null;
+
+/** Every group I'm in, hosting or joined: one place to get back to them. */
+function YourGroups() {
+  const groups = useGroups();
+  if (!groups.data?.length) return null;
+  return (
+    <section aria-labelledby="groups-title" className="mt-8">
+      <SectionTitle id="groups-title">Your groups</SectionTitle>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {groups.data.map((g: GroupSummary) => (
+          <li key={g.proposal_id}>
+            <Link to={`/proposals/${g.proposal_id}`} className="press lift card flex min-h-24 items-center gap-3 p-3">
+              <span className="size-16 shrink-0 overflow-hidden rounded-xl"><Cover activity={g.activity_type} city={g.city} className="size-full" /></span>
+              <span className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="truncate text-[15px] font-semibold">{g.activity_title}</span>
+                <span className="truncate text-[12.5px] text-muted">{[g.city, dayLabel(g.date), g.role === "host" ? "You're hosting" : `Hosted by ${g.host_name.split(" ")[0]}`].filter(Boolean).join(" · ")}</span>
+                <span className="flex items-center gap-2">
+                  <span className="flex -space-x-2">{g.members.slice(0, 4).map((m, i) => <Avatar key={i} name={m.first_name} src={m.avatar_url} size={22} />)}</span>
+                  <span className="truncate text-[12.5px] text-muted">{g.members.map((m) => m.first_name).join(", ")}</span>
+                </span>
+              </span>
+              <Pill tone={g.status === "confirmed" ? "emerald" : "violet"} className="shrink-0">{STATUS[g.status] ?? g.status}</Pill>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function greeting() {
   const h = new Date().getHours();
@@ -76,6 +109,8 @@ export function Home() {
           <ArrowRight className="size-5 text-rose-ink" aria-hidden />
         </Link>
       )}
+
+      <YourGroups />
 
       <hr className="grad-rule my-8" />
       <FeedSection activity={filter} />

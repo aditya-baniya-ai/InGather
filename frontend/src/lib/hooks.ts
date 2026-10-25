@@ -11,6 +11,7 @@ export const keys = {
   run: (id: string) => ["run", id] as const,
   proposal: (id: string) => ["proposal", id] as const,
   invitations: ["invitations"] as const,
+  groups: ["groups"] as const,
   messages: (id: string) => ["messages", id] as const,
   blocks: ["blocks"] as const,
   demo: ["demo-accounts"] as const,
@@ -39,6 +40,9 @@ export const useProposal = (id: string | null | undefined, poll: number | false 
 
 export const useInvitations = () =>
   useQuery({ queryKey: keys.invitations, queryFn: api.invitations, refetchInterval: 5000 });
+
+export const useGroups = () =>
+  useQuery({ queryKey: keys.groups, queryFn: api.groups, refetchInterval: 10000 });
 
 export const useMessages = (id: string, enabled: boolean) =>
   useQuery({ queryKey: keys.messages(id), queryFn: () => api.messages(id), enabled, retry: noRetryOn4xx, refetchInterval: 3000 });

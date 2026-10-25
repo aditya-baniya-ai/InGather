@@ -133,6 +133,11 @@ export interface Proposal {
   /** Owner only: people can ask to join from their Home feed. */
   open_to_requests?: boolean;
 }
+/** A group I host or joined (Home, "Your groups"). */
+export interface GroupSummary {
+  proposal_id: string; activity_title: string; activity_type: string; city: string; date: string | null; status: string;
+  role: "host" | "member"; host_name: string; members: { first_name: string; avatar_url: string | null }[];
+}
 export interface Invitation {
   proposal_id: string;
   activity_title: string;
@@ -325,6 +330,7 @@ export class ApiClient {
   approveInvitations = (id: string, version: number, user_ids: string[]) =>
     this.post<Proposal>(`/api/proposals/${id}/approve-invitations`, { version, user_ids });
   invitations = () => this.get<Invitation[]>("/api/invitations");
+  groups = () => this.get<GroupSummary[]>("/api/groups");
   respond = (id: string, accept: boolean) => this.post<Proposal>(`/api/proposals/${id}/respond`, { accept });
   venuePoll = (id: string) => this.get<VenuePoll>(`/api/proposals/${id}/venue-poll`);
   startVenuePoll = (id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll`);

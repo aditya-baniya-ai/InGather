@@ -329,6 +329,24 @@ class InvitationOut(BaseModel):
     expires_at: UTC | None
 
 
+class GroupPersonOut(BaseModel):
+    first_name: str
+    avatar_url: str | None
+
+
+class GroupOut(BaseModel):
+    """A group the viewer is in (as host or accepted member), for the Home "Your groups" list."""
+    proposal_id: UUID
+    activity_title: str
+    activity_type: str
+    city: str
+    date: date | None
+    status: str
+    role: Literal["host", "member"]
+    host_name: str
+    members: list[GroupPersonOut]  # everyone accepted, host first
+
+
 class MessageIn(BaseModel):
     body: str = Field(min_length=1, max_length=1000)
 

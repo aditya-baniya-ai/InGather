@@ -26,7 +26,7 @@ from app.models import (
     User,
     now,
 )
-from app.schemas import FinalizeIn, InvitationOut, MemberOut, MessageOut, ProposalOut, VenueCategory
+from app.schemas import FinalizeIn, GroupOut, GroupPersonOut, InvitationOut, MemberOut, MessageOut, ProposalOut, VenueCategory
 from app.services.clock import as_utc, minutes
 from app.services.matching import GroupAvailability, Matching
 from app.services.policy import Policy, conflict
@@ -331,6 +331,34 @@ class Proposals:
             for m, p, plan, owner in self.db.execute(q)
             if owner.id not in blocked
         ]
+
+    def groups(self, user: User) -> list[GroupOut]:
+        """Every live group the user is in, hosting or as an accepted member, soonest first."""
+        q = (
+            select(ProposalMember, Proposal, Plan)
+            .join(Proposal, Proposal.id == ProposalMember.proposal_id)
+            .join(Plan, Plan.id == Proposal.plan_id)
+            .where(
+                ProposalMember.user_id == user.id,
+                ProposalMember.status == MemberStatus.accepted,
+                Proposal.status.in_((ProposalStatus.invites_pending, ProposalStatus.awaiting_final, ProposalStatus.confirmed)),
+            )
+            .order_by(Proposal.start_at)
+        )
+        blocked = self.policy.blocked_with(user.id)
+        out = []
+        for m, p, plan in self.db.execute(q):
+            people = sorted((x for x in p.members if x.status == MemberStatus.accepted), key=lambda x: not x.is_initiator)
+            if any(x.user_id in blocked for x in people):
+                continue
+            host = next(x for x in p.members if x.is_initiator)
+            out.append(GroupOut(
+                proposal_id=p.id, activity_title=p.activity_title, activity_type=plan.activity_type, city=plan.city,
+                date=self._local_date(p, plan), status=p.status, role="host" if m.is_initiator else "member",
+                host_name=host.user.display_name,
+                members=[GroupPersonOut(first_name=x.user.display_name.split(" ")[0], avatar_url=x.user.avatar_url) for x in people],
+            ))
+        return out
 
     def view(self, proposal: Proposal, viewer: User, role: str) -> ProposalOut:
         """Shape a proposal for one viewer according to the disclosure rules in the API contract."""

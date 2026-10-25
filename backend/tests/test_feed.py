@@ -175,3 +175,20 @@ def test_feed_api_join_draft_and_avatars(db, users, as_user, austin, monkeypatch
     svg = c.get("/api/demo/avatars/atx-0001.svg")
     assert svg.status_code == 200 and svg.headers["content-type"].startswith("image/svg") and svg.text.startswith("<svg")
     assert c.get("/api/demo/avatars/alice.svg").status_code == 404
+
+
+def test_your_groups_lists_hosted_and_joined_groups(db, users, settings, austin, as_user, client):
+    """After a join is accepted, the group shows up for the new member and for the host, with the same people."""
+    target = groups(db)[0]
+    feed = Feed(db, settings)
+    req = feed.request(users["alice"], target.id, None)
+    feed.decide(target, req.id, accept=True)
+    host = db.get(User, target.owner_id)
+    mine = as_user(users["alice"]).get("/api/groups").json()
+    theirs = as_user(host).get("/api/groups").json()
+    a = next(g for g in mine if g["proposal_id"] == str(target.id))
+    h = next(g for g in theirs if g["proposal_id"] == str(target.id))
+    assert a["role"] == "member" and h["role"] == "host" and a["host_name"] == host.display_name
+    assert a["members"] == h["members"] and "Alice" in [m["first_name"] for m in a["members"]]
+    assert a["members"][0]["first_name"] == host.display_name.split(" ")[0]  # host first
+    assert as_user(users["eve"]).get("/api/groups").json() == []
