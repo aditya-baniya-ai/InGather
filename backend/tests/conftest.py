@@ -1,7 +1,7 @@
 import os
 
 os.environ.update(MODEL_API_KEY="", DEMO_MODE="true", DATABASE_URL="sqlite://", JWT_SECRET="test-secret-test-secret-test-secret-0123",
-                  VENUE_SEARCH_ENABLED="false", SUPABASE_URL="", SUPABASE_ANON_KEY="")
+                  VENUE_SEARCH_ENABLED="false", SUPABASE_URL="", SUPABASE_ANON_KEY="", GOOGLE_MAPS_API_KEY="")
 
 import sys  # noqa: E402
 import types  # noqa: E402
