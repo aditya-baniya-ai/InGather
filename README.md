@@ -31,6 +31,27 @@ To reset the demo data: `docker compose down -v && docker compose up`.
 
 Matching never needs `MODEL_API_KEY`: it runs on the server's own model and costs no tokens. The key turns on the Muse features below, which work before and after matching.
 
+### Use Supabase Postgres
+
+The default Compose setup starts a local Postgres container. To use a Supabase
+database instead, copy the Postgres connection string from **Supabase >
+Connect**, add the `psycopg+` SQLAlchemy scheme, and set it in `.env`:
+
+```dotenv
+SUPABASE_DATABASE_URL=postgresql+psycopg://postgres.<project-ref>:<password>@<pooler-host>:5432/postgres?sslmode=require
+```
+
+Use the session pooler connection for local Docker development. Then start the
+app normally:
+
+```bash
+docker compose up --build
+```
+
+The app runs its Alembic migrations against Supabase on startup. The local
+`db` service is still started but is not used while `SUPABASE_DATABASE_URL` is
+set. Never commit the connection string or database password.
+
 ## Meta AI in the product
 
 | Model | Where |

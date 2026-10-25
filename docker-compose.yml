@@ -15,7 +15,7 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://ingather:ingather@db:5432/ingather
+      DATABASE_URL: ${SUPABASE_DATABASE_URL:-postgresql+psycopg://ingather:ingather@db:5432/ingather}
       CORS_ORIGINS: http://localhost:8000
     ports: ["8000:8000"]
     volumes: [media:/app/media]
