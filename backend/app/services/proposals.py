@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.services.profile import details as profile_details
 from app.config import Settings
 from app.models import (
     AgentRun,
@@ -428,6 +429,7 @@ class Proposals:
             status=m.status,
             reason=m.reason if reason else None,
             confirmed=m.final_confirmed_version == proposal.version,
+            details=profile_details(m.user),  # only reached for owner/member viewers (see `view`)
         )
 
     @staticmethod

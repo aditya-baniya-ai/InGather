@@ -93,6 +93,16 @@ class User(Base):
     home_lng: Mapped[float | None] = mapped_column(Float)
     # Supabase Auth user id (`sub`) for people who signed up through Supabase; never set for demo accounts.
     supabase_id: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    # OPTIONAL, self-reported "about you" fields. Never used for matching/ranking, never sent to an AI model; shown only
+    # to accepted group members / confirmed-meetup chats, and only when the matching show_* switch is on (off by default).
+    gender: Mapped[str | None] = mapped_column(String(20))  # woman|man|non_binary|self_describe|prefer_not_to_say
+    gender_self: Mapped[str | None] = mapped_column(String(40))
+    age_range: Mapped[str | None] = mapped_column(String(8))  # 18-24|25-34|35-44|45-54|55+
+    education: Mapped[str | None] = mapped_column(String(120))
+    work: Mapped[str | None] = mapped_column(String(120))
+    show_gender: Mapped[bool] = mapped_column(default=False)
+    show_age: Mapped[bool] = mapped_column(default=False)
+    show_background: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

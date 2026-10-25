@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -8,6 +8,7 @@ from app.models import User
 from app.schemas import AuthConfigOut, DemoAccountOut, DemoLoginIn, LoginIn, MeOut, MeUpdate, RegisterIn, SupabaseIn, TokenOut
 from app.security import Passwords, Tokens, current_user, not_found
 from app.services.policy import Policy
+from app.services.profile import SEED, Avatars
 from app.services.ratelimit import limiter
 
 router = APIRouter(prefix="/api", tags=["auth"])
@@ -54,6 +55,7 @@ def supabase_session(body: SupabaseIn, db: Session = Depends(get_db), s: Setting
         meta = claims.get("user_metadata") or {}
         name = (body.display_name or meta.get("display_name") or meta.get("full_name") or email.split("@")[0]).strip()[:60]
         user = User(email=email, password_hash="!supabase", display_name=name or "New member", supabase_id=claims["sub"])
+        Avatars.generate(user)
         db.add(user)
         db.commit()
     return token_out(user, db, s)
@@ -67,6 +69,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db), s: Settings = Depe
     if by_email(db, body.email):
         raise HTTPException(status.HTTP_409_CONFLICT, "email_taken")
     user = User(email=body.email.lower(), password_hash=Passwords.hash(body.password), display_name=body.display_name)
+    Avatars.generate(user)
     db.add(user)
     db.commit()
     return token_out(user, db, s)
@@ -101,6 +104,8 @@ def demo_login(body: DemoLoginIn, db: Session = Depends(get_db), s: Settings = D
 
 @router.get("/me", response_model=MeOut)
 def get_me(user: User = Depends(current_user), db: Session = Depends(get_db), s: Settings = Depends(get_settings)):
+    if Avatars.ensure(user):  # people from before generated avatars get one lazily
+        db.commit()
     return me_out(user, db, s)
 
 
@@ -113,8 +118,13 @@ def update_me(
 ):
     data = body.model_dump(exclude_unset=True, exclude_none=True)
     area = data.pop("home_area", None)
+    old_gender = user.gender
     for field, value in data.items():
-        setattr(user, field, value)
+        setattr(user, field, value or None if field in ("gender", "gender_self", "age_range", "education", "work") else value)
+    if user.gender != "self_describe":
+        user.gender_self = None
+    if user.gender != old_gender:
+        Avatars.restyle(user)
     if area is not None:
         from app.services.geo import geocode_area
         area = area.strip()
@@ -122,5 +132,41 @@ def update_me(
             user.home_area = area or None
             point = geocode_area(area, s.venue_search_enabled) if area else None
             user.home_lat, user.home_lng = point if point else (None, None)
+    db.commit()
+    return me_out(user, db, s)
+
+
+# --- avatars -------------------------------------------------------------------------------------
+@router.get("/avatars/{seed}.svg", include_in_schema=False)
+def generated_avatar(seed: str, g: str | None = None):
+    """Public illustrated avatar drawn from a random seed (no user data); `g` picks the self-reported style pool."""
+    if not SEED.match(seed):
+        raise not_found()
+    from app.demo.avatars import avatar_svg
+
+    return Response(avatar_svg(seed, g if g in ("woman", "man") else "any"), media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=604800, immutable"})
+
+
+@router.post("/me/avatar/shuffle", response_model=MeOut)
+def shuffle_avatar(user: User = Depends(current_user), db: Session = Depends(get_db), s: Settings = Depends(get_settings)):
+    limiter.hit("avatar", user.id)
+    Avatars.generate(user)
+    db.commit()
+    return me_out(user, db, s)
+
+
+@router.post("/me/avatar", response_model=MeOut)
+async def upload_avatar(photo: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(get_db),
+                        s: Settings = Depends(get_settings)):
+    limiter.hit("avatar_upload", user.id)
+    await Avatars.upload(user, photo)
+    db.commit()
+    return me_out(user, db, s)
+
+
+@router.delete("/me/avatar", response_model=MeOut)
+def remove_avatar(user: User = Depends(current_user), db: Session = Depends(get_db), s: Settings = Depends(get_settings)):
+    Avatars.generate(user, Avatars.seed(user))
     db.commit()
     return me_out(user, db, s)

@@ -9,7 +9,7 @@ import { api, type Member, type Proposal } from "../lib/api";
 import { useSetProposal } from "../lib/hooks";
 import { formatDateTime, localToUtcIso, utcToLocal } from "../lib/time";
 import { VENUE_CATEGORIES } from "../lib/vocab";
-import { Avatar, Burst, Button, InlineError, Panel, Pill, SelectField, TextField } from "./ui";
+import { Avatar, Burst, Button, DetailChips, InlineError, Panel, Pill, SelectField, TextField } from "./ui";
 
 export const participantsOf = (p: Proposal): Member[] => p.members.filter((m) => m.is_initiator || m.status === "accepted");
 
@@ -135,7 +135,7 @@ export function SafeMeet({ p }: { p: Proposal }) {
         {people.map((m) => (
           <li key={m.user_id} className="flex items-center gap-3">
             <Avatar name={m.display_name} src={m.avatar_url} size={32} />
-            <span className="flex-1 text-[15px]">{m.display_name}{m.is_initiator && <span className="text-muted"> · organizer</span>}</span>
+            <div className="min-w-0 flex-1"><span className="text-[15px]">{m.display_name}{m.is_initiator && <span className="text-muted"> · organizer</span>}</span><DetailChips details={m.details} /></div>
             {confirmed && m.user_id !== me?.id && <button type="button" onClick={() => messagePerson(m)} aria-label={`Message ${m.display_name}`} className="press grid size-9 shrink-0 place-items-center rounded-full bg-violet-soft text-violet-ink hover:bg-violet-soft/70"><MessageCircle className="size-4" aria-hidden /></button>}
             {m.confirmed ? <Pill tone="emerald"><Check className="size-3.5" aria-hidden /> Confirmed</Pill> : <Pill tone="neutral">Not yet</Pill>}
           </li>

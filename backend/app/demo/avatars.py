@@ -15,12 +15,24 @@ STYLES = ["bob", "waves", "long", "bun", "crop", "sweep", "curls"]
 ACCESSORIES = ["none", "none", "none", "glasses", "earrings", "beard"]
 
 
-def avatar_svg(key: str) -> str:
+# Style pools for the self-reported gender a person chose (never inferred). Unset / other answers use every style, no beard.
+POOLS = {
+    "woman": (["bob", "waves", "long", "bun", "curls"], ["none", "none", "none", "glasses", "earrings"]),
+    "man": (["crop", "sweep", "curls"], ["none", "none", "none", "glasses", "beard"]),
+}
+ANY = (STYLES, ["none", "none", "none", "glasses", "earrings"])
+
+
+def avatar_svg(key: str, gender: str | None = None) -> str:
+    """Portrait for `key`. Without a gender this is the original demo drawing; with one it draws from that pool."""
     rng = random.Random(int(hashlib.sha256(key.encode()).hexdigest()[:12], 16))
-    style = rng.choice(STYLES)
-    accessory = rng.choice(ACCESSORIES)
-    if accessory == "beard" and style in ("bob", "waves", "long", "bun"):
-        accessory = "none"
+    if gender is None:
+        style, accessory = rng.choice(STYLES), rng.choice(ACCESSORIES)
+        if accessory == "beard" and style in ("bob", "waves", "long", "bun"):
+            accessory = "none"
+    else:
+        styles, accessories = POOLS.get(gender, ANY)
+        style, accessory = rng.choice(styles), rng.choice(accessories)
     return portrait(key, rng.choice(BACKGROUNDS), rng.choice(SKINS), rng.choice(HAIRS), rng.choice(SHIRTS), style, accessory)
 
 

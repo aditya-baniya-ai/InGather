@@ -160,6 +160,16 @@ export function Avatar({ name, src, size = 40, ring }: { name: string; src?: str
   );
 }
 
+/** Opt-in "about you" details someone chose to show accepted group members. */
+export function DetailChips({ details, className }: { details?: string[]; className?: string }) {
+  if (!details?.length) return null;
+  return (
+    <ul aria-label="About" className={cx("mt-1 flex flex-wrap gap-1", className)}>
+      {details.map((d) => <li key={d} className="max-w-full truncate rounded-full bg-raised px-2 py-0.5 text-[12px] leading-5 text-muted">{d}</li>)}
+    </ul>
+  );
+}
+
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cx("skeleton", className)} aria-hidden />;
 }

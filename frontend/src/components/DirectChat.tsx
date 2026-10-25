@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Send } from "lucide-react";
 import { api, type ChatPerson } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Avatar, Button, cx, ErrorState, InlineError, LoadingBlock } from "./ui";
+import { Avatar, Button, cx, DetailChips, ErrorState, InlineError, LoadingBlock } from "./ui";
 
 export function DirectChat({ person }: { person: ChatPerson }) {
   const { me } = useAuth();
@@ -31,7 +31,7 @@ export function DirectChat({ person }: { person: ChatPerson }) {
   };
   return <section aria-label={`Conversation with ${person.display_name}`} className="flex min-h-0 flex-1 flex-col overflow-hidden">
     <header className="flex items-center gap-3 border-b border-line bg-gradient-to-r from-rose-soft/60 to-violet-soft/60 p-4">
-      <Avatar name={person.display_name} src={person.avatar_url} size={40} /><div><h3 className="font-semibold">{person.display_name}</h3><p className="text-[12px] text-muted">Connected through a confirmed meetup</p></div>
+      <Avatar name={person.display_name} src={person.avatar_url} size={40} /><div><h3 className="font-semibold">{person.display_name}</h3><p className="text-[12px] text-muted">Connected through a confirmed meetup</p><DetailChips details={person.details} /></div>
     </header>
     <div ref={list} role="log" aria-label="Direct messages" aria-live="polite" onScroll={() => { const el = list.current; if (el) atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
       {q.isPending ? <LoadingBlock label="Loading conversation" rows={3} /> : q.isError ? <ErrorState error={q.error} onRetry={() => q.refetch()} what="this conversation" /> : !q.data.length ? <div className="grid h-full content-center gap-2 text-center"><p className="font-semibold">Say hello to {person.display_name}.</p><p className="text-[13px] text-muted">Keep the connection going, one conversation at a time.</p></div> : <div className="flex flex-col gap-4">{q.data.map(m => {

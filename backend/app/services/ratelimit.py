@@ -19,6 +19,8 @@ class RateLimiter:
         "venue_vote": (30, 60),
         "join_request": (10, 60),
         "join_draft": (10, 60),
+        "avatar": (30, 60),
+        "avatar_upload": (5, 300),
     }
 
     def __init__(self):

@@ -16,11 +16,15 @@ IANA `timezone`. IDs are UUID strings.
 | GET | /api/auth/demo-accounts | – | `[{email, display_name, avatar_url, bio}]` **only when DEMO_MODE**, else 404 |
 | POST | /api/auth/demo-login | `{email}` | `TokenOut`; only DEMO_MODE and only `is_demo` users |
 | GET | /api/me | – | `MeOut` |
-| PATCH | /api/me | `{display_name?, bio?, interests?, avatar_url?, discovery_paused?, group_only?, home_area? (≤80, "" clears)}` | `MeOut`. Any other field (e.g. `verification`) is ignored. |
+| PATCH | /api/me | `{display_name?, bio?, interests?, avatar_url?, discovery_paused?, group_only?, home_area? (≤80, "" clears), gender?: woman\|man\|non_binary\|self_describe\|prefer_not_to_say\|"", gender_self? (≤40, kept only with self_describe), age_range?: 18-24\|25-34\|35-44\|45-54\|55+\|"", education? (≤120), work? (≤120), show_gender?, show_age?, show_background?}` | `MeOut`. Any other field (e.g. `verification`) is ignored; `""` clears an about-you field. Changing gender redraws a generated avatar (same seed) in the matching style; uploaded photos are untouched. |
+| POST | /api/me/avatar | multipart `photo` | `MeOut`. JPEG/PNG/WebP decided by magic bytes (client type ignored), ≤3 MB (413), else 415 `unsupported_image`; stored as `/media/avatars/<random>.<ext>`. Rate-limited (5 / 5 min). |
+| POST | /api/me/avatar/shuffle | – | `MeOut`. New random generated avatar (an uploaded photo is removed). |
+| DELETE | /api/me/avatar | – | `MeOut`. Back to a generated avatar (keeps the previous seed if there was one). |
+| GET | /api/avatars/{seed}.svg?g=woman\|man | – | Public, cacheable illustrated avatar; seed `[a-z0-9]{8,32}` else 404. Contains no user data. New users get one at sign-up; older accounts get one lazily on `GET /api/me`. |
 
 `TokenOut = {access_token, token_type:"bearer", user: MeOut}`
 
-`MeOut = {id, email, display_name, avatar_url, bio, interests[], verification: "unverified"|"verified_demo"|"verified_live", is_demo, discovery_paused, group_only, can_discover: bool, home_area|null, home_area_located: bool}` — `home_area` is private (owner only); its server-geocoded coordinates are rounded to 0.01° (~1 km) and never returned to anyone
+`MeOut = {id, email, display_name, avatar_url, bio, interests[], verification: "unverified"|"verified_demo"|"verified_live", is_demo, discovery_paused, group_only, can_discover: bool, home_area|null, home_area_located: bool}` — `home_area` is private (owner only); its server-geocoded coordinates are rounded to 0.01° (~1 km) and never returned to anyone. Also owner-only: `gender, gender_self, age_range, education, work, show_gender, show_age, show_background` (switches default false) and `avatar_kind: generated|photo|other`
 
 `can_discover` = adult AND (verified_live OR (verified_demo AND DEMO_MODE)) AND not paused.
 
@@ -82,7 +86,9 @@ Validation: end_date ≥ start_date, ends_at > starts_at, 2 ≤ group_min ≤ gr
 
 `ProposalOut = {id, plan_id, version, status, activity_title, explanation, start_at, end_at, timezone, city, venue_label, venue_category, venue_verified, icebreaker, viewer_role: "owner"|"invitee"|"member", members: [MemberOut], group_size, my_status, i_confirmed: bool}`
 
-`MemberOut = {user_id, display_name, avatar_url, interests[], is_initiator, status, reason|null, confirmed: bool}`
+`MemberOut = {user_id, display_name, avatar_url, interests[], is_initiator, status, reason|null, confirmed: bool, details: string[]}`
+
+`details` are human-readable "about you" chips (e.g. `["Woman", "25–34", "Software engineer at Dell", "UT Austin, CS"]`) holding only the fields that person switched on (gender / age range / education+work). Only owner and member viewers ever receive a roster, so invitees, strangers and the feed never see them. The same `details` appear on `ChatPerson` in `GET /api/chats` (everyone there comes from a confirmed meetup). These fields are never used for matching or ranking and never sent to an AI model.
 
 Disclosure by viewer:
 - **owner**: everything above, all non-`removed` members incl. `suggested`/`passed` with `reason`.

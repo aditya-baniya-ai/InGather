@@ -7,6 +7,7 @@ from app.models import DirectConnection, DirectMessage, MemberStatus, Message, P
 from app.schemas import ChatPerson, ConversationOut, MessageOut
 from app.security import not_found
 from app.services.policy import Policy
+from app.services.profile import details as profile_details
 
 
 class Chats:
@@ -23,7 +24,7 @@ class Chats:
 
     @staticmethod
     def person(user: User):
-        return ChatPerson(user_id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
+        return ChatPerson(user_id=user.id, display_name=user.display_name, avatar_url=user.avatar_url, details=profile_details(user))
 
     @staticmethod
     def pair_messages(a, b):

@@ -27,8 +27,20 @@ export interface Me {
   /** Private coarse home area (city / neighborhood / ZIP). Only ever returned to its owner. */
   home_area?: string | null;
   home_area_located?: boolean;
+  /** Optional, self-reported, owner-only "about you" fields; each group has its own visibility switch (off by default). */
+  gender?: Gender | null;
+  gender_self?: string | null;
+  age_range?: AgeRange | null;
+  education?: string | null;
+  work?: string | null;
+  show_gender?: boolean;
+  show_age?: boolean;
+  show_background?: boolean;
+  avatar_kind?: "generated" | "photo" | "other";
 }
-export interface ChatPerson { user_id: string; display_name: string; avatar_url: string | null }
+export type Gender = "woman" | "man" | "non_binary" | "self_describe" | "prefer_not_to_say";
+export type AgeRange = "18-24" | "25-34" | "35-44" | "45-54" | "55+";
+export interface ChatPerson { user_id: string; display_name: string; avatar_url: string | null; details?: string[] }
 export interface Conversation { id: string; kind: "group" | "direct"; title: string; people: ChatPerson[]; last_message: string | null; last_sender_name: string | null; updated_at: string }
 export interface TokenOut { access_token: string; token_type: "bearer"; user: Me }
 export interface DemoAccount { email: string; display_name: string; avatar_url: string | null; bio: string | null }
@@ -88,6 +100,8 @@ export interface Member {
   status: MemberStatus;
   reason: string | null;
   confirmed: boolean;
+  /** Opt-in "about you" chips; only sent to accepted group members, and only fields the person switched on. */
+  details?: string[];
 }
 export interface Proposal {
   id: string;
@@ -177,7 +191,8 @@ export interface JoinRequest { id: string; user_id: string; display_name: string
 export interface VenuePlace { id: string; name: string; category: string; latitude: number; longitude: number; address: string; distance_m: number; source: string; reservation_url?: string | null; source_url?: string | null }
 export interface NearbyPlaces { status: string; message: string; places: VenuePlace[]; origin?: { latitude: number; longitude: number; label: string } }
 export interface FinalizeIn { venue_place_id?: string; start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
-export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only" | "home_area">>;
+export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only" | "home_area"
+  | "gender_self" | "education" | "work" | "show_gender" | "show_age" | "show_background">> & { gender?: Gender | ""; age_range?: AgeRange | "" };
 
 /** Google Maps details for a venue option (present when the server has a Google Maps key). */
 export interface PlaceInfo {
@@ -273,6 +288,13 @@ export class ApiClient {
     this.post<TokenOut>("/api/auth/supabase", display_name ? { access_token, display_name } : { access_token });
   me = () => this.get<Me>("/api/me");
   updateMe = (patch: MePatch) => this.request<Me>("PATCH", "/api/me", patch);
+  uploadAvatar = (photo: File) => {
+    const form = new FormData();
+    form.append("photo", photo);
+    return this.post<Me>("/api/me/avatar", form);
+  };
+  shuffleAvatar = () => this.post<Me>("/api/me/avatar/shuffle");
+  removeAvatar = () => this.request<Me>("DELETE", "/api/me/avatar");
 
   // verification
   verification = () => this.get<VerificationOut>("/api/verification");

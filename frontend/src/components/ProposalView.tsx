@@ -11,7 +11,7 @@ import { SafetyActions } from "./SafetyActions";
 import { JoinRequests } from "./JoinRequests";
 import { FinalizeForm, SafeMeet, VenueTime } from "./SafeMeet";
 import { VenueVote, canVoteVenue } from "./VenueVote";
-import { Avatar, Button, InlineError, Panel, Pill } from "./ui";
+import { Avatar, Button, DetailChips, InlineError, Panel, Pill } from "./ui";
 
 function Roster({ p, title = "Group" }: { p: Proposal; title?: string }) {
   const people = p.members.filter((m) => m.status !== "suggested" && m.status !== "passed");
@@ -25,6 +25,7 @@ function Roster({ p, title = "Group" }: { p: Proposal; title?: string }) {
             <div className="min-w-0 flex-1">
               <p className="font-medium">{m.display_name}{m.is_initiator && <span className="font-normal text-muted"> · organizer</span>}</p>
               {m.interests.length > 0 && <p className="truncate text-[13px] text-muted">{m.interests.slice(0, 3).join(" · ")}</p>}
+              <DetailChips details={m.details} />
             </div>
             {!m.is_initiator && <Pill tone={MEMBER_STATUS[m.status].tone}>{MEMBER_STATUS[m.status].label}</Pill>}
           </li>

@@ -44,10 +44,23 @@ class MeUpdate(BaseModel):
     display_name: str | None = Field(None, min_length=1, max_length=60)
     bio: str | None = Field(None, max_length=280)
     interests: list[Interest] | None = Field(None, max_length=20)
-    avatar_url: str | None = Field(None, max_length=500)
     discovery_paused: bool | None = None
     group_only: bool | None = None
     home_area: str | None = Field(None, max_length=80)  # city / neighborhood / ZIP; "" clears it
+    # Optional self-reported "about you" fields ("" clears). Never used for matching or sent to any AI model.
+    gender: Literal["woman", "man", "non_binary", "self_describe", "prefer_not_to_say", ""] | None = None
+    gender_self: str | None = Field(None, max_length=40)
+    age_range: Literal["18-24", "25-34", "35-44", "45-54", "55+", ""] | None = None
+    education: str | None = Field(None, max_length=120)
+    work: str | None = Field(None, max_length=120)
+    show_gender: StrictBool | None = None
+    show_age: StrictBool | None = None
+    show_background: StrictBool | None = None
+
+    @field_validator("gender_self", "education", "work")
+    @classmethod
+    def _strip(cls, v: str | None) -> str | None:
+        return v.strip() if isinstance(v, str) else v
 
 
 class MeOut(Out):
@@ -64,12 +77,25 @@ class MeOut(Out):
     can_discover: bool
     home_area: str | None = None  # private: only ever returned to its owner
     home_area_located: bool = False  # whether the server could place it (coords themselves are never returned)
+    gender: str | None = None  # owner-only "about you" fields and their visibility switches
+    gender_self: str | None = None
+    age_range: str | None = None
+    education: str | None = None
+    work: str | None = None
+    show_gender: bool = False
+    show_age: bool = False
+    show_background: bool = False
+    avatar_kind: Literal["generated", "photo", "other"] = "other"
 
     @classmethod
     def build(cls, user: User, can_discover: bool) -> "MeOut":
-        fields = {k: getattr(user, k) for k in cls.model_fields if k not in ("can_discover", "home_area_located")}
+        from app.services.profile import Avatars
+
+        fields = {k: getattr(user, k) for k in cls.model_fields if k not in ("can_discover", "home_area_located", "avatar_kind")}
         located = user.home_lat is not None and user.home_lng is not None
-        return cls.model_validate({**fields, "can_discover": can_discover, "home_area_located": located})
+        url = user.avatar_url or ""
+        kind = "generated" if Avatars.seed(user) else "photo" if url.startswith("/media/avatars/") else "other"
+        return cls.model_validate({**fields, "can_discover": can_discover, "home_area_located": located, "avatar_kind": kind})
 
 
 class TokenOut(BaseModel):
@@ -260,6 +286,7 @@ class MemberOut(BaseModel):
     status: str
     reason: str | None
     confirmed: bool
+    details: list[str] = []  # opt-in "about you" chips; only for owner/member viewers, else empty
 
 
 class ProposalOut(BaseModel):
@@ -401,6 +428,7 @@ class ChatPerson(BaseModel):
     user_id: UUID
     display_name: str
     avatar_url: str | None
+    details: list[str] = []  # opt-in "about you" chips (inbox people are all from confirmed meetups)
 
 
 class ConversationOut(BaseModel):

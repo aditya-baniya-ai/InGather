@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Check, Copy, KeyRound } from "lucide-react";
+import { Check, Copy, ImagePlus, KeyRound, Shuffle, Trash2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "../components/AppShell";
 import { VerificationCard } from "../components/VerificationCard";
-import { Avatar, Button, Chip, ErrorState, InlineError, LoadingBlock, Panel, Pill, Switch, TextArea, TextField } from "../components/ui";
-import { api, type MePatch } from "../lib/api";
+import { Avatar, Button, Chip, ErrorState, InlineError, LoadingBlock, Panel, Pill, SelectField, Switch, TextArea, TextField } from "../components/ui";
+import { api, type Me, type MePatch } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { keys, useAction, useBlocks, useVerification } from "../lib/hooks";
+import { AGE_RANGES, GENDERS, aboutFromMe, aboutPatch, photoError, type AboutForm } from "../lib/profile";
 import { INTEREST_SUGGESTIONS, verificationCopy } from "../lib/vocab";
 
 function Section({ title, description, children, id }: { title: string; description?: ReactNode; children: ReactNode; id: string }) {
@@ -60,6 +61,82 @@ function ConnectorCard() {
   );
 }
 
+function AvatarBlock({ me, onMe }: { me: Me; onMe: (m: Me) => void }) {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const upload = useAction((f: File) => api.uploadAvatar(f), [], (m) => { onMe(m); setPreview(null); });
+  const shuffle = useAction(() => api.shuffleAvatar(), [], onMe);
+  const remove = useAction(() => api.removeAvatar(), [], onMe);
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  const pick = (f?: File) => {
+    if (!f) return;
+    const err = photoError(f);
+    setFileError(err);
+    if (err) return;
+    setPreview(URL.createObjectURL(f));
+    upload.mutate(f);
+  };
+  const photo = me.avatar_kind === "photo";
+  return (
+    <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+      <Avatar name={me.display_name} src={upload.isPending && preview ? preview : me.avatar_url} size={96} ring />
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex flex-wrap gap-2">
+          <label className="press inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-[14px] font-medium hover:bg-raised focus-within:ring-2 focus-within:ring-violet">
+            <ImagePlus className="size-4" aria-hidden />{upload.isPending ? "Uploading…" : "Upload photo"}
+            <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" aria-label="Upload photo"
+              onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} />
+          </label>
+          {photo ? <Button variant="ghost" onClick={() => remove.mutate(undefined)} loading={remove.isPending} icon={<Trash2 className="size-4" aria-hidden />}>Remove photo</Button>
+            : <Button variant="ghost" onClick={() => shuffle.mutate(undefined)} loading={shuffle.isPending} icon={<Shuffle className="size-4" aria-hidden />}>Shuffle</Button>}
+        </div>
+        <p className="text-[13px] text-muted">JPEG, PNG or WebP, up to 3 MB. Without a photo you get an illustrated avatar.</p>
+        {fileError && <p role="alert" className="text-[13.5px] text-danger">{fileError}</p>}
+        <InlineError error={upload.error ?? shuffle.error ?? remove.error} />
+      </div>
+    </div>
+  );
+}
+
+function AboutSection({ me, onMe }: { me: Me; onMe: (m: Me) => void }) {
+  const [f, setF] = useState<AboutForm>(() => aboutFromMe(me));
+  const [saved, setSaved] = useState(false);
+  useEffect(() => setF(aboutFromMe(me)), [me]);
+  const save = useAction((patch: MePatch) => api.updateMe(patch), [], onMe);
+  const set = <K extends keyof AboutForm>(k: K, v: AboutForm[K]) => setF((x) => ({ ...x, [k]: v }));
+  const what = { showGender: "gender", showAge: "age range", showBackground: "education and work" };
+  const show = (k: keyof typeof what) =>
+    <Switch checked={f[k]} onChange={(v) => set(k, v)} label={<>Show to accepted group members<span className="sr-only"> ({what[k]})</span></>} />;
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    save.mutate(aboutPatch(f), { onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); } });
+  };
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <p className="text-[13.5px] text-muted">Never used to match or rank people, and never sent to any AI model. Hidden from everyone unless you switch it on.</p>
+      <Panel className="flex flex-col gap-3 p-4">
+        <SelectField label="Gender" options={GENDERS} value={f.gender} onChange={(e) => set("gender", e.target.value as AboutForm["gender"])} />
+        {f.gender === "self_describe" && <TextField label="How you describe it" value={f.genderSelf} maxLength={40} onChange={(e) => set("genderSelf", e.target.value)} />}
+        {show("showGender")}
+      </Panel>
+      <Panel className="flex flex-col gap-3 p-4">
+        <SelectField label="Age range" options={AGE_RANGES} value={f.ageRange} onChange={(e) => set("ageRange", e.target.value as AboutForm["ageRange"])} />
+        {show("showAge")}
+      </Panel>
+      <Panel className="flex flex-col gap-3 p-4">
+        <TextField label="Education" optional value={f.education} maxLength={120} placeholder="UT Austin, CS" onChange={(e) => set("education", e.target.value)} />
+        <TextField label="Work" optional value={f.work} maxLength={120} placeholder="Software engineer at Dell" onChange={(e) => set("work", e.target.value)} />
+        {show("showBackground")}
+      </Panel>
+      <div className="flex items-center gap-3">
+        <Button type="submit" variant="secondary" loading={save.isPending}>Save about you</Button>
+        {saved && <span role="status" className="text-[14px] text-emerald-ink">Saved</span>}
+      </div>
+      <InlineError error={save.error} />
+    </form>
+  );
+}
+
 export function Profile() {
   const { me, signOut } = useAuth();
   const qc = useQueryClient();
@@ -76,7 +153,8 @@ export function Profile() {
     setName(me.display_name); setBio(me.bio ?? ""); setInterests(me.interests); setArea(me.home_area ?? "");
   }, [me]);
 
-  const update = useAction((patch: MePatch) => api.updateMe(patch), [], (m) => qc.setQueryData(["me"], m));
+  const setMe = (m: Me) => qc.setQueryData(["me"], m);
+  const update = useAction((patch: MePatch) => api.updateMe(patch), [], setMe);
   const unblock = useAction((id: string) => api.unblock(id), [keys.blocks]);
 
   if (!me) return <AppShell><LoadingBlock /></AppShell>;
@@ -89,8 +167,8 @@ export function Profile() {
 
   return (
     <AppShell>
-      <header className="flex items-center gap-4 pb-2">
-        <Avatar name={me.display_name} src={me.avatar_url} size={72} ring />
+      <header className="flex flex-col gap-4 pb-2">
+        <AvatarBlock me={me} onMe={setMe} />
         <div className="min-w-0">
           <h1 className="page-title break-words">{me.display_name}</h1>
           <div className="mt-1 flex flex-wrap gap-2">
@@ -120,6 +198,10 @@ export function Profile() {
             </div>
             <InlineError error={update.error} />
           </form>
+        </Section>
+
+        <Section id="s-about" title="About you · optional" description="Self-reported. Each part has its own switch, off by default.">
+          <AboutSection me={me} onMe={setMe} />
         </Section>
 
         <Section id="s-verify" title="Verification" description="A gate for discovery, not a safety rating.">
