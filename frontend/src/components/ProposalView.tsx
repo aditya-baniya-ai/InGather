@@ -9,6 +9,7 @@ import { MEMBER_STATUS, PROPOSAL_STATUS } from "../lib/vocab";
 import { CandidateList } from "./CandidateList";
 import { SafetyActions } from "./SafetyActions";
 import { FinalizeForm, SafeMeet, VenueTime } from "./SafeMeet";
+import { VenueVote, canVoteVenue } from "./VenueVote";
 import { Avatar, Button, InlineError, Panel, Pill } from "./ui";
 
 function Roster({ p, title = "Group" }: { p: Proposal; title?: string }) {
@@ -95,8 +96,9 @@ function MemberView({ p }: { p: Proposal }) {
     <>
       <Header p={p} organizer={p.initiator_name || organizer?.display_name} />
       <div className="flex flex-col gap-4">
+        {canVoteVenue(p) && <VenueVote p={p} />}
         {final ? <SafeMeet p={p} /> : (
-          <Panel className="p-5"><p className="text-[15px]">You're in. The organizer will propose a final public place and time; you'll confirm it before anything is set.</p></Panel>
+          <Panel className="p-5"><p className="text-[15px]">You're in. Vote on a public place with the group, or the organizer will propose one; you'll confirm the final details before anything is set.</p></Panel>
         )}
         <Roster p={p} />
         <SafetyActions proposalId={p.id} person={organizer && { id: organizer.user_id, name: organizer.display_name }}
@@ -119,6 +121,7 @@ function OwnerView({ p, onRun }: { p: Proposal; onRun: (r: Run) => void }) {
     <>
       <Header p={p} />
       <div className="flex flex-col gap-4">
+        {canVoteVenue(p) && <VenueVote p={p} />}
         {final && <SafeMeet p={p} />}
         {p.status === "pending_owner" && (
           <Panel className="p-5 sm:p-6" aria-labelledby="proposal-title">

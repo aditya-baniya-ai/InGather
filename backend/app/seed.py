@@ -116,6 +116,17 @@ PERSONAS = [
 ]
 
 
+# Fictional, coarse (~1 km) home areas so the venue vote has a group midpoint without any network geocoding.
+HOME_AREAS = {
+    "alice": ("Center City, Philadelphia", 39.95, -75.17), "maya": ("Fishtown, Philadelphia", 39.97, -75.13),
+    "sofia": ("Rittenhouse, Philadelphia", 39.95, -75.17), "jordan": ("University City, Philadelphia", 39.95, -75.19),
+    "taylor": ("Northern Liberties, Philadelphia", 39.96, -75.14), "eve": ("Old City, Philadelphia", 39.95, -75.14),
+    "priya": ("Graduate Hospital, Philadelphia", 39.94, -75.18), "marcus": ("South Philadelphia", 39.93, -75.16),
+    "lena": ("Fairmount, Philadelphia", 39.97, -75.18), "noah": ("Queen Village, Philadelphia", 39.94, -75.15),
+    "diego": ("East Austin", 30.26, -97.72),
+}
+
+
 class Seeder:
     def __init__(self, db: Session):
         self.db = db
@@ -138,6 +149,8 @@ class Seeder:
         user.avatar_url = f"/avatars/{p.key}.svg"
         user.verification, user.is_adult, user.is_demo = Verification.verified_demo, True, True
         user.discovery_paused, user.group_only = False, True
+        if p.key in HOME_AREAS and user.home_area is None:
+            user.home_area, user.home_lat, user.home_lng = HOME_AREAS[p.key]
         return user
 
     def _plan(self, user: User, p: Persona) -> None:

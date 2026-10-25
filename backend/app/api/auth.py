@@ -72,7 +72,16 @@ def update_me(
     db: Session = Depends(get_db),
     s: Settings = Depends(get_settings),
 ):
-    for field, value in body.model_dump(exclude_unset=True, exclude_none=True).items():
+    data = body.model_dump(exclude_unset=True, exclude_none=True)
+    area = data.pop("home_area", None)
+    for field, value in data.items():
         setattr(user, field, value)
+    if area is not None:
+        from app.services.geo import geocode_area
+        area = area.strip()
+        if area != (user.home_area or ""):
+            user.home_area = area or None
+            point = geocode_area(area, s.venue_search_enabled) if area else None
+            user.home_lat, user.home_lng = point if point else (None, None)
     db.commit()
     return me_out(user, db, s)

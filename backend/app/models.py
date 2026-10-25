@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime, timezone
 from enum import StrEnum
 
-from sqlalchemy import JSON, Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import JSON, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -86,6 +86,11 @@ class User(Base):
     is_demo: Mapped[bool] = mapped_column(default=False)
     discovery_paused: Mapped[bool] = mapped_column(default=False)
     group_only: Mapped[bool] = mapped_column(default=True)
+    # PRIVATE, owner-only: optional coarse "home area" (city/neighborhood/ZIP text). Coordinates are
+    # server-geocoded and rounded to 0.01 deg (~1 km); never an exact address, never live GPS, never shown to others.
+    home_area: Mapped[str | None] = mapped_column(String(80))
+    home_lat: Mapped[float | None] = mapped_column(Float)
+    home_lng: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -289,3 +294,44 @@ class DirectMessage(Base):
     recipient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     body: Mapped[str] = mapped_column(String(1000))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class VenuePoll(Base):
+    """One venue vote per proposal. `round` bumps on a re-roll ("none of these work"); only one re-roll allowed."""
+
+    __tablename__ = "venue_polls"
+    id: Mapped[uuid.UUID] = Id.pk()
+    proposal_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("proposals.id", ondelete="CASCADE"), unique=True)
+    round: Mapped[int] = mapped_column(Integer, default=1)
+    rerolls_used: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(12), default="open")  # open|decided
+    winner_option_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    source: Mapped[str] = mapped_column(String(12), default="fallback")  # grounded|fallback
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+    options: Mapped[list["VenueOption"]] = relationship(cascade="all, delete-orphan", order_by="VenueOption.rank")
+
+
+class VenueOption(Base):
+    __tablename__ = "venue_options"
+    id: Mapped[uuid.UUID] = Id.pk()
+    poll_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_polls.id", ondelete="CASCADE"), index=True)
+    round: Mapped[int] = mapped_column(Integer)
+    rank: Mapped[int] = mapped_column(Integer)  # venue agent's ranking, 1 = best; breaks ties
+    name: Mapped[str] = mapped_column(String(160))
+    area: Mapped[str | None] = mapped_column(String(200))  # address or neighborhood
+    category: Mapped[str] = mapped_column(String(40))
+    why: Mapped[str] = mapped_column(String(400), default="")
+    reservation_url: Mapped[str | None] = mapped_column(String(500))
+    source_url: Mapped[str | None] = mapped_column(String(500))
+    verified: Mapped[bool] = mapped_column(default=False)  # True only if it came from grounded search with a source URL
+
+
+class VenueVote(Base):
+    __tablename__ = "venue_votes"
+    __table_args__ = (UniqueConstraint("poll_id", "user_id"),)
+    id: Mapped[uuid.UUID] = Id.pk()
+    poll_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_polls.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    option_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("venue_options.id", ondelete="CASCADE"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)

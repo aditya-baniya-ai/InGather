@@ -68,11 +68,12 @@ export function Profile() {
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
+  const [area, setArea] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!me) return;
-    setName(me.display_name); setBio(me.bio ?? ""); setInterests(me.interests);
+    setName(me.display_name); setBio(me.bio ?? ""); setInterests(me.interests); setArea(me.home_area ?? "");
   }, [me]);
 
   const update = useAction((patch: MePatch) => api.updateMe(patch), [], (m) => qc.setQueryData(["me"], m));
@@ -82,7 +83,7 @@ export function Profile() {
 
   const save = (e: FormEvent) => {
     e.preventDefault();
-    update.mutate({ display_name: name.trim(), bio: bio.trim(), interests }, { onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); } });
+    update.mutate({ display_name: name.trim(), bio: bio.trim(), interests, home_area: area.trim() }, { onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); } });
   };
   const toggle = (t: string) => setInterests((xs) => (xs.includes(t) ? xs.filter((x) => x !== t) : [...xs, t]));
 
@@ -111,6 +112,8 @@ export function Profile() {
                 {[...new Set([...INTEREST_SUGGESTIONS, ...interests])].map((t) => <Chip key={t} selected={interests.includes(t)} onClick={() => toggle(t)}>{t}</Chip>)}
               </div>
             </div>
+            <TextField label="Home area" optional value={area} onChange={(e) => setArea(e.target.value)} maxLength={80}
+              placeholder="Neighborhood, city or ZIP" hint={`Private. Only used, rounded to about 1 km, to pick a fair meeting spot. Never your address; never shown to anyone.${me.home_area && me.home_area_located === false ? " We couldn't place this one; try a ZIP." : ""}`} />
             <div className="flex items-center gap-3">
               <Button type="submit" loading={update.isPending}>Save profile</Button>
               {saved && <span role="status" className="text-[14px] text-emerald-ink">Saved</span>}

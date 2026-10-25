@@ -24,6 +24,9 @@ export interface Me {
   discovery_paused: boolean;
   group_only: boolean;
   can_discover: boolean;
+  /** Private coarse home area (city / neighborhood / ZIP). Only ever returned to its owner. */
+  home_area?: string | null;
+  home_area_located?: boolean;
 }
 export interface ChatPerson { user_id: string; display_name: string; avatar_url: string | null }
 export interface Conversation { id: string; kind: "group" | "direct"; title: string; people: ChatPerson[]; last_message: string | null; last_sender_name: string | null; updated_at: string }
@@ -159,10 +162,20 @@ export interface PlanDraft {
 
 export interface Message { id: string; sender_id: string | null; sender_name: string; body: string; created_at: string }
 export interface BlockedUser { user_id: string; display_name: string }
-export interface VenuePlace { id: string; name: string; category: string; latitude: number; longitude: number; address: string; distance_m: number; source: string }
+export interface VenuePlace { id: string; name: string; category: string; latitude: number; longitude: number; address: string; distance_m: number; source: string; reservation_url?: string | null; source_url?: string | null }
 export interface NearbyPlaces { status: string; message: string; places: VenuePlace[]; origin?: { latitude: number; longitude: number; label: string } }
 export interface FinalizeIn { venue_place_id?: string; start_at?: string; end_at?: string; venue_label?: string; venue_category?: string }
-export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only">>;
+export type MePatch = Partial<Pick<Me, "display_name" | "bio" | "interests" | "avatar_url" | "discovery_paused" | "group_only" | "home_area">>;
+
+export interface VenueOption {
+  id: string; rank: number; name: string; area: string | null; category: string; why: string;
+  reservation_url: string | null; source_url: string | null; verified: boolean; votes: number;
+}
+export interface Voter { user_id: string; display_name: string; voted: boolean }
+export interface VenuePoll {
+  status: "not_started" | "open" | "decided"; round: number; rerolls_left: number; source: "grounded" | "fallback" | null;
+  options: VenueOption[]; my_vote: string | null; voters: Voter[]; winner_option_id: string | null; proposal_version: number;
+}
 
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
@@ -265,6 +278,19 @@ export class ApiClient {
     this.post<Proposal>(`/api/proposals/${id}/approve-invitations`, { version, user_ids });
   invitations = () => this.get<Invitation[]>("/api/invitations");
   respond = (id: string, accept: boolean) => this.post<Proposal>(`/api/proposals/${id}/respond`, { accept });
+  venuePoll = (id: string) => this.get<VenuePoll>(`/api/proposals/${id}/venue-poll`);
+  startVenuePoll = (id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll`);
+  voteVenue = (id: string, option_id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll/vote`, { option_id });
+  rerollVenues = (id: string) => this.post<VenuePoll>(`/api/proposals/${id}/venue-poll/reroll`);
+  /** Downloads the .ics with the bearer token (a plain link can't carry it). */
+  downloadCalendar = async (id: string) => {
+    const res = await fetch(`/api/proposals/${id}/calendar.ics`, { headers: this.memToken ? { Authorization: `Bearer ${this.memToken}` } : {} });
+    if (!res.ok) throw new ApiError(res.status, res.statusText || "Request failed");
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement("a"), { href: url, download: "ingather-meetup.ics" });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   finalize = (id: string, body: FinalizeIn) => this.post<Proposal>(`/api/proposals/${id}/finalize`, body);
   confirm = (id: string, version: number) => this.post<Proposal>(`/api/proposals/${id}/confirm`, { version });
   leave = (id: string) => this.post<Proposal | undefined>(`/api/proposals/${id}/leave`);
@@ -319,6 +345,10 @@ const DETAIL_COPY: Record<string, string> = {
   checks_failed: "The safety checks didn't pass, so nothing was proposed.",
   propose_failed: "The group changed while it was being saved. Try again.",
   internal_error: "Something went wrong while finding a group.",
+  reroll_used: "You've already asked for new options once. Pick one of these, or the organizer can set a place.",
+  venue_poll_closed: "Voting has finished. Confirm the winning place below.",
+  option_not_found: "Those options changed. Pick again from the new ones.",
+  no_venue_poll: "Nobody has started the venue vote yet.",
 };
 
 /** Friendly copy for a backend detail code (or the code itself). */

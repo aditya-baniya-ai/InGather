@@ -15,6 +15,8 @@ class RateLimiter:
         "login": (10, 60),
         "plan_draft": (10, 60),
         "place_lookup": (10, 60),
+        "venue_agent": (6, 60),
+        "venue_vote": (30, 60),
     }
 
     def __init__(self):

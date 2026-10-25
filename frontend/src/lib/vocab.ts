@@ -45,7 +45,8 @@ export const VENUE_CATEGORIES = [
   { value: "park", label: "Park" },
   { value: "food_hall", label: "Food hall" },
   { value: "library", label: "Library" },
-  { value: "venue", label: "Event venue" },
+  { value: "conference_venue", label: "Event venue" },
+  { value: "public_venue", label: "Other public place" },
 ];
 
 export const DISCOVERY: Record<DiscoveryMode, { label: string; help: string }> = {

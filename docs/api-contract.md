@@ -16,11 +16,11 @@ IANA `timezone`. IDs are UUID strings.
 | GET | /api/auth/demo-accounts | – | `[{email, display_name, avatar_url, bio}]` **only when DEMO_MODE**, else 404 |
 | POST | /api/auth/demo-login | `{email}` | `TokenOut`; only DEMO_MODE and only `is_demo` users |
 | GET | /api/me | – | `MeOut` |
-| PATCH | /api/me | `{display_name?, bio?, interests?, avatar_url?, discovery_paused?, group_only?}` | `MeOut`. Any other field (e.g. `verification`) is ignored. |
+| PATCH | /api/me | `{display_name?, bio?, interests?, avatar_url?, discovery_paused?, group_only?, home_area? (≤80, "" clears)}` | `MeOut`. Any other field (e.g. `verification`) is ignored. |
 
 `TokenOut = {access_token, token_type:"bearer", user: MeOut}`
 
-`MeOut = {id, email, display_name, avatar_url, bio, interests[], verification: "unverified"|"verified_demo"|"verified_live", is_demo, discovery_paused, group_only, can_discover: bool}`
+`MeOut = {id, email, display_name, avatar_url, bio, interests[], verification: "unverified"|"verified_demo"|"verified_live", is_demo, discovery_paused, group_only, can_discover: bool, home_area|null, home_area_located: bool}` — `home_area` is private (owner only); its server-geocoded coordinates are rounded to 0.01° (~1 km) and never returned to anyone
 
 `can_discover` = adult AND (verified_live OR (verified_demo AND DEMO_MODE)) AND not paused.
 
@@ -64,6 +64,13 @@ Validation: end_date ≥ start_date, ends_at > starts_at, 2 ≤ group_min ≤ gr
 | POST | /api/proposals/{id}/leave | – | `ProposalOut`/204 — member leaves; owner leaving = cancel |
 | GET | /api/proposals/{id}/messages | – | `[MessageOut]` — confirmed proposals, current participants only |
 | POST | /api/proposals/{id}/messages | `{body (1-1000)}` | `MessageOut` |
+| GET | /api/proposals/{id}/venue-poll | – | `VenuePollOut` — owner or accepted member (else 404); `status:"not_started"` until someone starts it |
+| POST | /api/proposals/{id}/venue-poll | – | `VenuePollOut` — any participant; status `invites_pending` (nobody still invited, ≥1 accepted) or `awaiting_final`; runs the venue agent (sync, ≤~60 s live); idempotent once started. 409 `invites_pending`/`no_accepted_members`/`not_open`/`invalid_time` |
+| POST | /api/proposals/{id}/venue-poll/vote | `{option_id}` | `VenuePollOut` — one vote per participant, re-posting changes it. When every current participant has voted: winner = most votes, tie → agent's best rank; winner becomes `venue_*`, **version bumps, confirmations reset, status→awaiting_final**. 409 `venue_poll_closed`/`option_not_found`/`no_venue_poll` |
+| POST | /api/proposals/{id}/venue-poll/reroll | – | `VenuePollOut` — "none of these work": 3 new options, votes reset; once per proposal (409 `reroll_used`) |
+| GET | /api/proposals/{id}/calendar.ics | – | `text/calendar` VEVENT (UID, DTSTART/DTEND UTC, SUMMARY, LOCATION venue, DESCRIPTION with Gather Room link). Confirmed proposals, participants only; else 404 |
+
+`VenuePollOut = {status: "not_started"|"open"|"decided", round, rerolls_left, source: "grounded"|"fallback"|null, options: [{id, rank, name, area|null, category, why, reservation_url|null, source_url|null, verified, votes}], my_vote|null, voters: [{user_id, display_name, voted}], winner_option_id|null, proposal_version}` — `voters` shows *whether* each person voted, never their choice. `verified=true` only when the venue's source URL was returned by the Muse Spark web_search grounding; otherwise it is labeled "Suggestion — not verified". Offline/failure options are generic public-place kinds, never invented names. The model sees only the city, the rounded group midpoint (mean of participants' ~1 km home-area points), local meetup time, activity title and shared interests.
 
 `ProposalOut = {id, plan_id, version, status, activity_title, explanation, start_at, end_at, timezone, city, venue_label, venue_category, venue_verified, icebreaker, viewer_role: "owner"|"invitee"|"member", members: [MemberOut], group_size, my_status, i_confirmed: bool}`
 

@@ -17,6 +17,8 @@ from app.schemas import (
     ProposalOut,
     RespondIn,
     RunOut,
+    VenuePollOut,
+    VenueVoteIn,
 )
 from app.security import current_user, not_found
 from app.services.outbox import Outbox
@@ -24,6 +26,7 @@ from app.services.policy import Policy, conflict
 from app.services.proposals import OPEN, Proposals
 from app.services.ratelimit import limiter
 from app.services.runs import FEEDBACK_HINTS, AgentRuns
+from app.services.venue_votes import VenueVoting
 
 router = APIRouter(prefix="/api", tags=["proposals"])
 
@@ -38,7 +41,7 @@ class Ctx:
         db: Session = Depends(get_db),
         s: Settings = Depends(get_settings),
     ):
-        self.background, self.user, self.db = background, user, db
+        self.background, self.user, self.db, self.settings = background, user, db, s
         self.policy, self.proposals, self.runs = Policy(db, s), Proposals(db, s), AgentRuns(db, s)
 
     def proposal(self, proposal_id: UUID, *roles: str) -> tuple[Proposal, str]:
@@ -134,3 +137,51 @@ def post_message(proposal_id: UUID, body: MessageIn, ctx: Ctx = Depends()):
     proposal = chat_room(ctx, proposal_id)
     limiter.hit("message", ctx.user.id)
     return ctx.proposals.post_message(proposal, ctx.user, body.body)
+
+
+# --- venue vote + calendar ---------------------------------------------------------------------
+def voting(ctx: Ctx) -> VenueVoting:
+    return VenueVoting(ctx.db, ctx.settings)
+
+
+@router.get("/proposals/{proposal_id}/venue-poll", response_model=VenuePollOut)
+def get_venue_poll(proposal_id: UUID, ctx: Ctx = Depends()):
+    proposal, _ = ctx.proposal(proposal_id, "owner", "member")
+    return voting(ctx).view(proposal, ctx.user)
+
+
+@router.post("/proposals/{proposal_id}/venue-poll", response_model=VenuePollOut)
+def start_venue_poll(proposal_id: UUID, ctx: Ctx = Depends()):
+    proposal, _ = ctx.proposal(proposal_id, "owner", "member")
+    v = voting(ctx)
+    if v.poll(proposal) is None:
+        limiter.hit("venue_agent", ctx.user.id)
+    v.start(proposal)
+    return v.view(proposal, ctx.user)
+
+
+@router.post("/proposals/{proposal_id}/venue-poll/vote", response_model=VenuePollOut)
+def cast_venue_vote(proposal_id: UUID, body: VenueVoteIn, ctx: Ctx = Depends()):
+    proposal, _ = ctx.proposal(proposal_id, "owner", "member")
+    limiter.hit("venue_vote", ctx.user.id)
+    v = voting(ctx)
+    v.vote(proposal, ctx.user, body.option_id)
+    return v.view(proposal, ctx.user)
+
+
+@router.post("/proposals/{proposal_id}/venue-poll/reroll", response_model=VenuePollOut)
+def reroll_venue_poll(proposal_id: UUID, ctx: Ctx = Depends()):
+    proposal, _ = ctx.proposal(proposal_id, "owner", "member")
+    limiter.hit("venue_agent", ctx.user.id)
+    v = voting(ctx)
+    v.reroll(proposal)
+    return v.view(proposal, ctx.user)
+
+
+@router.get("/proposals/{proposal_id}/calendar.ics")
+def calendar_invite(proposal_id: UUID, ctx: Ctx = Depends()):
+    from app.services.calendar import ics
+    proposal = chat_room(ctx, proposal_id)  # confirmed + participant, else 404
+    body = ics(proposal, ctx.db.get(Plan, proposal.plan_id), ctx.settings.public_base_url)
+    return Response(body, media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="ingather-{proposal.id}.ics"'})

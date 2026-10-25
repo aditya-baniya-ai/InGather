@@ -47,6 +47,7 @@ class MeUpdate(BaseModel):
     avatar_url: str | None = Field(None, max_length=500)
     discovery_paused: bool | None = None
     group_only: bool | None = None
+    home_area: str | None = Field(None, max_length=80)  # city / neighborhood / ZIP; "" clears it
 
 
 class MeOut(Out):
@@ -61,11 +62,14 @@ class MeOut(Out):
     discovery_paused: bool
     group_only: bool
     can_discover: bool
+    home_area: str | None = None  # private: only ever returned to its owner
+    home_area_located: bool = False  # whether the server could place it (coords themselves are never returned)
 
     @classmethod
     def build(cls, user: User, can_discover: bool) -> "MeOut":
-        fields = {k: getattr(user, k) for k in cls.model_fields if k != "can_discover"}
-        return cls.model_validate({**fields, "can_discover": can_discover})
+        fields = {k: getattr(user, k) for k in cls.model_fields if k not in ("can_discover", "home_area_located")}
+        located = user.home_lat is not None and user.home_lng is not None
+        return cls.model_validate({**fields, "can_discover": can_discover, "home_area_located": located})
 
 
 class TokenOut(BaseModel):
@@ -406,3 +410,38 @@ class ConversationOut(BaseModel):
     last_message: str | None = None
     last_sender_name: str | None = None
     updated_at: UTC
+
+
+class VenueOptionOut(BaseModel):
+    id: UUID
+    rank: int
+    name: str
+    area: str | None
+    category: str
+    why: str
+    reservation_url: str | None
+    source_url: str | None
+    verified: bool  # True only when it came from grounded web search with a source URL
+    votes: int
+
+
+class VoterOut(BaseModel):
+    user_id: UUID
+    display_name: str
+    voted: bool  # whether they voted, never what they chose
+
+
+class VenuePollOut(BaseModel):
+    status: Literal["not_started", "open", "decided"]
+    round: int
+    rerolls_left: int
+    source: str | None  # grounded|fallback
+    options: list[VenueOptionOut]
+    my_vote: UUID | None
+    voters: list[VoterOut]
+    winner_option_id: UUID | None
+    proposal_version: int
+
+
+class VenueVoteIn(BaseModel):
+    option_id: UUID

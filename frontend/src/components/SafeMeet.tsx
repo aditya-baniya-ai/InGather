@@ -4,7 +4,7 @@ import { useMessenger } from "../lib/messenger";
 import { VenueMap } from "./VenueMap";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { CalendarClock, Check, MapPin, MessageCircle, Share2 } from "lucide-react";
+import { CalendarClock, CalendarPlus, Check, ExternalLink, MapPin, MessageCircle, Share2 } from "lucide-react";
 import { api, type Member, type Proposal } from "../lib/api";
 import { useSetProposal } from "../lib/hooks";
 import { formatDateTime, localToUtcIso, utcToLocal } from "../lib/time";
@@ -100,7 +100,13 @@ export function SafeMeet({ p }: { p: Proposal }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [shareNote, setShareNote] = useState("");
+  const [calBusy, setCalBusy] = useState(false);
   const confirmed = p.status === "confirmed";
+  const reserve = typeof p.venue_details?.reservation_url === "string" && p.venue_details.reservation_url.startsWith("https://") ? p.venue_details.reservation_url : null;
+  const addToCalendar = async () => {
+    setCalBusy(true); setError(null);
+    try { await api.downloadCalendar(p.id); } catch (e) { setError(e); } finally { setCalBusy(false); }
+  };
 
   const confirm = async () => {
     setBusy(true); setError(null);
@@ -163,7 +169,14 @@ export function SafeMeet({ p }: { p: Proposal }) {
             <MessageCircle className="size-4" aria-hidden /> Open Gather Room
           </Link>
         )}
+        {confirmed && <Button variant="secondary" loading={calBusy} onClick={addToCalendar} icon={<CalendarPlus className="size-4" aria-hidden />}>Add to calendar</Button>}
+        {confirmed && reserve && (
+          <a href={reserve} target="_blank" rel="noopener noreferrer" className="press inline-flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface px-5 font-medium">
+            <ExternalLink className="size-4" aria-hidden /> Reserve
+          </a>
+        )}
       </div>
+      {confirmed && <InlineError error={error} />}
       {shareNote && <p role="status" className="mt-2 text-[14px] text-muted">{shareNote}</p>}
     </Panel>
   );
