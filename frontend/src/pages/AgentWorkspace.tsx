@@ -126,6 +126,17 @@ export function AgentWorkspace() {
   const created = (useLocation().state as { created?: boolean } | null)?.created;
 
   if (plan.isPending) return <AppShell aside={<AgentGuardrails />}><LoadingBlock label="Loading plan" /></AppShell>;
+  if (plan.isError && plan.error instanceof ApiError && plan.error.status === 404) {
+    // Removed plans, another account's plan, or a link from before the demo data was reset: nothing to retry.
+    return (
+      <AppShell>
+        <EmptyState title="This plan isn't available."
+          action={<Link to="/home" className="press inline-flex min-h-11 items-center rounded-full ig-grad btn-grad px-5 font-medium text-white">Go to your plans</Link>}>
+          It may have been removed, or it belongs to a different account.
+        </EmptyState>
+      </AppShell>
+    );
+  }
   if (plan.isError) return <AppShell><ErrorState error={plan.error} onRetry={() => plan.refetch()} what="this plan" /></AppShell>;
   const p = plan.data;
   const running = run.data?.status === "running";
